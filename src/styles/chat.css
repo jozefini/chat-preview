@@ -1,20 +1,38 @@
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- *  DO NOT RESTYLE. This is the watch-chat extension's chat CSS, copied verbatim
- *  from watch-chat/popup.html so a rendered row is pixel-identical to the
- *  extension's preview.
+ *  DO NOT RESTYLE. These are the watch-chat extension's chat styles, copied
+ *  from watch-chat/popup.html so a rendered row matches the extension's
+ *  preview exactly.
  *
- *  The surrounding app UI is Tailwind and free to look however it likes — it
+ *  ZOOM: every size the extension hard-coded in px is written here as
+ *  `calc(<original>px * var(--chat-zoom))`. At --chat-zoom: 1 the output is
+ *  byte-identical to the extension; above 1 the whole row scales in proportion,
+ *  so nothing drifts relative to anything else. Only ever change the variable,
+ *  never the base numbers — they are the reference values.
+ *
+ *  The surrounding app UI is Tailwind and free to look however it likes; it
  *  just must not reach inside `.chat-pane`. Everything here is scoped under
  *  that class so Tailwind's preflight can't touch it either.
  *
- *  Additions beyond the extension are marked APP-ONLY and are limited to
- *  things the extension had no need for: virtualization positioning and search
- *  highlighting.
+ *  Additions beyond the extension are marked APP-ONLY.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/* Fallback only — the zoom control sets --chat-zoom inline on the app shell,
+   which .chat-pane then inherits. This MUST stay on :root and never be
+   redeclared on .chat-pane itself: a declaration on .chat-pane wins over the
+   inherited value, which silently pins the pane at the fallback and makes the
+   zoom control a no-op. 1 = exact extension sizing. */
+:root {
+  --chat-zoom: 1.3;
+}
+
 .chat-pane {
+  /* DELIBERATE DEVIATION: the extension packs rows 3px apart, which reads as a
+     dense wall on a full-size screen. 8px gives the log room to breathe, and
+     scales with --chat-zoom like everything else. Set back to 3px for
+     byte-exact extension spacing. */
+  --chat-gap: 8px;
   font-family: Arial, Helvetica, sans-serif;
   color: #f3f4f6;
 }
@@ -22,11 +40,12 @@
 /* ── Compact preview rows ── */
 .chat-pane .chat-row {
   border-radius: 6px;
-  padding: 3px 6px 4px;
+  padding: calc(3px * var(--chat-zoom)) calc(6px * var(--chat-zoom))
+    calc(4px * var(--chat-zoom));
   transition: background 0.12s;
   cursor: default;
-  margin-bottom: 3px;
-  font-size: 12px;
+  margin-bottom: calc(var(--chat-gap) * var(--chat-zoom));
+  font-size: calc(12px * var(--chat-zoom));
   line-height: 1.2;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -37,16 +56,16 @@
 .chat-pane .reply-line {
   display: flex;
   align-items: center;
-  gap: 3px;
-  margin-bottom: 3px;
+  gap: calc(3px * var(--chat-zoom));
+  margin-bottom: calc(3px * var(--chat-zoom));
   color: #979799;
-  font-size: 10px;
+  font-size: calc(10px * var(--chat-zoom));
   min-width: 0;
-  padding-left: 14px;
+  padding-left: calc(14px * var(--chat-zoom));
 }
 .chat-pane .reply-icon {
-  width: 10px;
-  height: 10px;
+  width: calc(10px * var(--chat-zoom));
+  height: calc(10px * var(--chat-zoom));
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -62,43 +81,45 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: calc(150px * var(--chat-zoom));
   opacity: 0.5;
 }
 
 .chat-pane .chat-timestamp {
-  font-size: 9px;
+  font-size: calc(9px * var(--chat-zoom));
   color: #979799;
-  margin-right: 5px;
+  margin-right: calc(5px * var(--chat-zoom));
   user-select: none;
 }
 .chat-pane .author-name {
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: calc(12px * var(--chat-zoom));
 }
 .chat-pane .reply-arrow {
-  margin-left: 3px;
-  margin-right: 2px;
+  margin-left: calc(3px * var(--chat-zoom));
+  margin-right: calc(2px * var(--chat-zoom));
   color: #fca5a5;
-  font-size: 10px;
+  font-size: calc(10px * var(--chat-zoom));
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
 .chat-pane .msg-sep {
   color: #979799;
-  margin-right: 2px;
+  margin-right: calc(2px * var(--chat-zoom));
 }
 .chat-pane .msg-inline {
   margin-left: 0;
   display: inline;
   color: #fff;
   word-break: break-word;
-  font-size: 11px;
+  font-size: calc(11px * var(--chat-zoom));
   opacity: 0.85;
 }
+/* Emote height is 1.45em in the extension — em already tracks the scaled
+   font-size, so it needs no zoom factor of its own. */
 .chat-pane .emoji-inline {
   display: inline-block;
   vertical-align: bottom;
@@ -120,7 +141,7 @@
 
 /* ── APP-ONLY: virtualization ──
    Rows are absolutely positioned by TanStack Virtual. The extension rendered
-   every row into normal flow; we can't, at 12k rows. Visual result is the
+   every row into normal flow; we can't, at 12k rows. The visual result is the
    same because .chat-row keeps its own box metrics above. */
 .chat-pane .virt-row {
   position: absolute;
@@ -129,8 +150,8 @@
   width: 100%;
 }
 
-/* Re-running the fade on every scroll recycle would strobe. Rows only animate
-   on first paint of a day; see ChatView. */
+/* Re-running the fade on every scroll recycle would strobe, so rows only
+   animate on the first paint of a day. See ChatView. */
 .chat-pane .no-anim .msg-row {
   animation: none;
 }

@@ -8,8 +8,8 @@ interface Props {
   terms: string[]
   /** Changes when the day changes — resets scroll and replays the fade-in. */
   resetKey: string
-  /** Index into `messages` to scroll to, or null. */
-  scrollToIndex: number | null
+  /** Chat text scale; row heights depend on it, so measurements must refresh. */
+  zoom: number
 }
 
 /**
@@ -20,15 +20,16 @@ interface Props {
  * Row heights vary (replies carry an extra line, long messages wrap), so this
  * measures each row rather than assuming a fixed height.
  */
-export function ChatView({ messages, terms, resetKey, scrollToIndex }: Props) {
+export function ChatView({ messages, terms, resetKey, zoom }: Props) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [animate, setAnimate] = useState(true)
 
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => parentRef.current,
-    // Close to a single-line row; measureElement corrects each one on mount.
-    estimateSize: () => 22,
+    // Close to a single-line row at this zoom; measureElement corrects each one
+    // on mount, so this only has to be near enough to size the scrollbar well.
+    estimateSize: () => Math.round(22 * zoom),
     overscan: 24,
     getItemKey: (i) => messages[i].i,
   })
@@ -49,11 +50,11 @@ export function ChatView({ messages, terms, resetKey, scrollToIndex }: Props) {
     return () => clearTimeout(t)
   }, [animate, resetKey])
 
+  // Zoom changes every row's height, so cached measurements are stale.
   useEffect(() => {
-    if (scrollToIndex == null) return
-    virtualizer.scrollToIndex(scrollToIndex, { align: 'center', behavior: 'auto' })
+    virtualizer.measure()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToIndex])
+  }, [zoom])
 
   const items = virtualizer.getVirtualItems()
 

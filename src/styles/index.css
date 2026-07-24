@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+/* The chat pane is imported after Tailwind so its verbatim extension styles
+   win over preflight. It is fully scoped under `.chat-pane`. */
+@import './chat.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: #0a0a0a;
+  color: #f3f4f6;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* App-shell scrollbars (the chat pane has its own, in chat.css). */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}

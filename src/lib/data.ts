@@ -60,12 +60,35 @@ function decodeDay(raw: RawDay): DecodedDay {
     })
   }
 
-  const authors = [...counts.entries()]
-    .map(([idx, count]) => ({
-      name: raw.a[idx]?.[0] ?? '',
-      color: raw.a[idx]?.[1] ?? '',
-      count,
-    }))
+  // The archive stores authorColor per message, and people change their colour
+  // over time — so one person holds several dictionary entries (up to 10 in
+  // this archive). Individual messages keep their own colour, which is what
+  // preserves fidelity with the extension, but the author LIST has to be one
+  // row per person: duplicates would split someone's message count across
+  // several rows and, because the picker keys rows by name, hand React
+  // duplicate keys and break its reconciliation of the filtered list.
+  const byName = new Map<string, { name: string; color: string; count: number; topEntry: number }>()
+
+  for (const [idx, count] of counts) {
+    const entry = raw.a[idx] ?? ['', '']
+    const name = entry[0]
+    const color = entry[1] ?? ''
+    const existing = byName.get(name)
+
+    if (!existing) {
+      byName.set(name, { name, color, count, topEntry: count })
+    } else {
+      existing.count += count
+      // Show each person in whichever colour they used most.
+      if (count > existing.topEntry) {
+        existing.topEntry = count
+        existing.color = color
+      }
+    }
+  }
+
+  const authors = [...byName.values()]
+    .map(({ name, color, count }) => ({ name, color, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 
   return { date: raw.d, dayStart: raw.s, messages, authors }

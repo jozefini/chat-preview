@@ -17,9 +17,9 @@
  */
 export const PUBLISH = {
   /** First published day, inclusive. `YYYY-MM-DD`, in archive-local time. */
-  START_DATE: '2026-04-10',
+  START_DATE: '2026-06-29',
   /** Last published day, inclusive. `YYYY-MM-DD`, in archive-local time. */
-  END_DATE: '2026-07-24',
+  END_DATE: '2026-06-29',
 
   /**
    * Daily clock window, applied to EVERY published day.
