@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { RootLayout } from '@/routes/root'
 import { DayRoute } from '@/routes/day'
-import { indexQuery } from '@/lib/data'
+import { daysWithData, hasMessages, indexQuery, nearestDayWithData } from '@/lib/data'
 import { queryClient } from '@/lib/queryClient'
 import { DEFAULT_SEARCH, validateDaySearch } from '@/lib/search'
 
@@ -18,7 +18,7 @@ const indexRoute = createRoute({
   /** Land on the most recent day that actually has messages. */
   loader: async () => {
     const index = await queryClient.ensureQueryData(indexQuery)
-    const withData = index.days.filter((d) => d.count > 0)
+    const withData = daysWithData(index)
     const latest = withData[withData.length - 1]
     if (latest) {
       throw redirect({
@@ -47,6 +47,26 @@ const dayRoute = createRoute({
   path: '/d/$date',
   component: DayRoute,
   validateSearch: validateDaySearch,
+  /**
+   * A date outside the publish window, or one holding no messages, is a dead
+   * end — so it never renders. Redirect to the nearest day that does have
+   * messages, which is also what makes a single-day archive land on that day
+   * however you arrived. Filters reset to `DEFAULT_SEARCH` (full time-of-day
+   * window): the ones in the URL belonged to a day you are no longer on, and
+   * carrying a narrowed range onto a different day can land you on a date that
+   * looks empty for a second, unrelated reason.
+   */
+  loader: async ({ params }) => {
+    const index = await queryClient.ensureQueryData(indexQuery)
+    if (hasMessages(index, params.date)) return null
+
+    const nearest = nearestDayWithData(index, params.date)
+    throw redirect(
+      nearest
+        ? { to: '/d/$date', params: { date: nearest }, search: DEFAULT_SEARCH }
+        : { to: '/' },
+    )
+  },
 })
 
 const routeTree = rootRoute.addChildren([indexRoute, dayRoute])

@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { ArchiveIndex, DecodedDay, Message, RawDay } from '@/types'
+import type { ArchiveIndex, DayMeta, DecodedDay, Message, RawDay } from '@/types'
 import { isPublishedDate, isPublishedMinute } from '@/config'
 
 const BASE = `${import.meta.env.BASE_URL}data`
@@ -92,6 +92,53 @@ function decodeDay(raw: RawDay): DecodedDay {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 
   return { date: raw.d, dayStart: raw.s, messages, authors }
+}
+
+/** `YYYY-MM-DD` → whole days since epoch, for measuring distance between dates. */
+function dayNumber(date: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  return Date.UTC(y, m - 1, d) / 86_400_000
+}
+
+/**
+ * Days that are both inside the publish window and actually hold messages —
+ * the only dates the app should ever route to. Ascending, as prep emits them.
+ */
+export function daysWithData(index: ArchiveIndex): DayMeta[] {
+  return index.days.filter((d) => d.count > 0 && isPublishedDate(d.date))
+}
+
+export function hasMessages(index: ArchiveIndex, date: string): boolean {
+  return daysWithData(index).some((d) => d.date === date)
+}
+
+/**
+ * The published day closest to `date`, or `null` when nothing is published.
+ *
+ * Used to rescue a URL pointing at a date that no longer exists — a bookmark
+ * from a wider publish window, or a day prep dropped. Choosing the *nearest*
+ * day rather than the newest keeps you where you were looking when the window
+ * changes under you. An unparseable date has no meaningful neighbour, so it
+ * falls back to the most recent day.
+ */
+export function nearestDayWithData(index: ArchiveIndex, date: string): string | null {
+  const days = daysWithData(index)
+  if (!days.length) return null
+
+  const target = dayNumber(date)
+  if (!Number.isFinite(target)) return days[days.length - 1].date
+
+  let best = days[0]
+  let bestGap = Infinity
+  for (const day of days) {
+    const gap = Math.abs(dayNumber(day.date) - target)
+    // Strict `<` keeps the earlier day when one sits equally far either side.
+    if (gap < bestGap) {
+      bestGap = gap
+      best = day
+    }
+  }
+  return best.date
 }
 
 export const indexQuery = queryOptions({
