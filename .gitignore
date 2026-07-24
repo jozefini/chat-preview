@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+*.local
+.vercel
+
+# Source archive (221 MB) stays out of git. `npm run prep` turns it into the
+# much smaller public/data + public/emojis, and THOSE are committed — Vercel
+# builds from the repo and needs them present.
+chat-archive-*

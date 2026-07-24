@@ -1,0 +1,159 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  DO NOT RESTYLE. This is the watch-chat extension's chat CSS, copied verbatim
+ *  from watch-chat/popup.html so a rendered row is pixel-identical to the
+ *  extension's preview.
+ *
+ *  The surrounding app UI is Tailwind and free to look however it likes — it
+ *  just must not reach inside `.chat-pane`. Everything here is scoped under
+ *  that class so Tailwind's preflight can't touch it either.
+ *
+ *  Additions beyond the extension are marked APP-ONLY and are limited to
+ *  things the extension had no need for: virtualization positioning and search
+ *  highlighting.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+.chat-pane {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #f3f4f6;
+}
+
+/* ── Compact preview rows ── */
+.chat-pane .chat-row {
+  border-radius: 6px;
+  padding: 3px 6px 4px;
+  transition: background 0.12s;
+  cursor: default;
+  margin-bottom: 3px;
+  font-size: 12px;
+  line-height: 1.2;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.chat-pane .chat-row:hover {
+  background: rgba(71, 79, 84, 0.5);
+}
+
+.chat-pane .reply-line {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 3px;
+  color: #979799;
+  font-size: 10px;
+  min-width: 0;
+  padding-left: 14px;
+}
+.chat-pane .reply-icon {
+  width: 10px;
+  height: 10px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.chat-pane .reply-user {
+  color: #fca5a5;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.chat-pane .reply-snippet {
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  opacity: 0.5;
+}
+
+.chat-pane .chat-timestamp {
+  font-size: 9px;
+  color: #979799;
+  margin-right: 5px;
+  user-select: none;
+}
+.chat-pane .author-name {
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.chat-pane .reply-arrow {
+  margin-left: 3px;
+  margin-right: 2px;
+  color: #fca5a5;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.chat-pane .msg-sep {
+  color: #979799;
+  margin-right: 2px;
+}
+.chat-pane .msg-inline {
+  margin-left: 0;
+  display: inline;
+  color: #fff;
+  word-break: break-word;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.chat-pane .emoji-inline {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.chat-pane .msg-row {
+  animation: chatFadeIn 0.14s ease both;
+}
+@keyframes chatFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── APP-ONLY: virtualization ──
+   Rows are absolutely positioned by TanStack Virtual. The extension rendered
+   every row into normal flow; we can't, at 12k rows. Visual result is the
+   same because .chat-row keeps its own box metrics above. */
+.chat-pane .virt-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/* Re-running the fade on every scroll recycle would strobe. Rows only animate
+   on first paint of a day; see ChatView. */
+.chat-pane .no-anim .msg-row {
+  animation: none;
+}
+
+/* ── APP-ONLY: search highlighting ── */
+.chat-pane mark.hit {
+  background: rgba(250, 204, 21, 0.28);
+  color: #fde68a;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── APP-ONLY: scrollbar, matching the extension's thin dark track ── */
+.chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
