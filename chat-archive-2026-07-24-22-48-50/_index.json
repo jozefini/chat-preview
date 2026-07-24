@@ -1,0 +1,445 @@
+{
+  "generatedAt": "2026-07-24T22:48:50.824Z",
+  "timezoneOffsetMinutes": -120,
+  "origins": [
+    "https://fermavip.org"
+  ],
+  "databases": [
+    {
+      "origin": "https://fermavip.org",
+      "database": "ChatQueryFinderDB",
+      "store": "chat_results",
+      "entries": 248940
+    },
+    {
+      "origin": "https://fermavip.org",
+      "database": "ChatQueryFinderDBS",
+      "store": "chat_results",
+      "entries": 254684
+    },
+    {
+      "origin": "https://fermavip.org",
+      "database": "ChatQueryFinderDBSNEW",
+      "store": "chat_results",
+      "entries": 53712
+    }
+  ],
+  "totalEntriesRaw": 557336,
+  "totalEntriesDeduped": 548472,
+  "daysWithData": 103,
+  "daysWithoutData": 3,
+  "days": [
+    {
+      "date": "2026-04-10",
+      "entries": 1434
+    },
+    {
+      "date": "2026-04-11",
+      "entries": 6775
+    },
+    {
+      "date": "2026-04-12",
+      "entries": 7666
+    },
+    {
+      "date": "2026-04-13",
+      "entries": 9778
+    },
+    {
+      "date": "2026-04-14",
+      "entries": 8000
+    },
+    {
+      "date": "2026-04-15",
+      "entries": 11836
+    },
+    {
+      "date": "2026-04-16",
+      "entries": 9345
+    },
+    {
+      "date": "2026-04-17",
+      "entries": 8905
+    },
+    {
+      "date": "2026-04-18",
+      "entries": 9773
+    },
+    {
+      "date": "2026-04-19",
+      "entries": 11768
+    },
+    {
+      "date": "2026-04-20",
+      "entries": 8951
+    },
+    {
+      "date": "2026-04-21",
+      "entries": 8714
+    },
+    {
+      "date": "2026-04-22",
+      "entries": 8646
+    },
+    {
+      "date": "2026-04-23",
+      "entries": 7404
+    },
+    {
+      "date": "2026-04-24",
+      "entries": 7688
+    },
+    {
+      "date": "2026-04-25",
+      "entries": 4507
+    },
+    {
+      "date": "2026-04-26",
+      "entries": 6445
+    },
+    {
+      "date": "2026-04-27",
+      "entries": 7653
+    },
+    {
+      "date": "2026-04-28",
+      "entries": 7334
+    },
+    {
+      "date": "2026-04-29",
+      "entries": 7666
+    },
+    {
+      "date": "2026-04-30",
+      "entries": 6493
+    },
+    {
+      "date": "2026-05-01",
+      "entries": 7911
+    },
+    {
+      "date": "2026-05-02",
+      "entries": 7514
+    },
+    {
+      "date": "2026-05-03",
+      "entries": 6992
+    },
+    {
+      "date": "2026-05-04",
+      "entries": 8117
+    },
+    {
+      "date": "2026-05-05",
+      "entries": 7939
+    },
+    {
+      "date": "2026-05-06",
+      "entries": 8179
+    },
+    {
+      "date": "2026-05-07",
+      "entries": 6725
+    },
+    {
+      "date": "2026-05-08",
+      "entries": 10000
+    },
+    {
+      "date": "2026-05-09",
+      "entries": 6241
+    },
+    {
+      "date": "2026-05-10",
+      "entries": 10440
+    },
+    {
+      "date": "2026-05-11",
+      "entries": 8936
+    },
+    {
+      "date": "2026-05-12",
+      "entries": 7959
+    },
+    {
+      "date": "2026-05-13",
+      "entries": 5454
+    },
+    {
+      "date": "2026-05-14",
+      "entries": 7124
+    },
+    {
+      "date": "2026-05-15",
+      "entries": 5753
+    },
+    {
+      "date": "2026-05-16",
+      "entries": 6239
+    },
+    {
+      "date": "2026-05-17",
+      "entries": 9385
+    },
+    {
+      "date": "2026-05-18",
+      "entries": 4135
+    },
+    {
+      "date": "2026-05-19",
+      "entries": 7167
+    },
+    {
+      "date": "2026-05-20",
+      "entries": 6497
+    },
+    {
+      "date": "2026-05-21",
+      "entries": 8863
+    },
+    {
+      "date": "2026-05-22",
+      "entries": 6390
+    },
+    {
+      "date": "2026-05-23",
+      "entries": 9764
+    },
+    {
+      "date": "2026-05-24",
+      "entries": 7064
+    },
+    {
+      "date": "2026-05-25",
+      "entries": 9568
+    },
+    {
+      "date": "2026-05-26",
+      "entries": 9551
+    },
+    {
+      "date": "2026-05-27",
+      "entries": 9999
+    },
+    {
+      "date": "2026-05-28",
+      "entries": 7902
+    },
+    {
+      "date": "2026-05-29",
+      "entries": 10962
+    },
+    {
+      "date": "2026-05-30",
+      "entries": 8424
+    },
+    {
+      "date": "2026-05-31",
+      "entries": 6512
+    },
+    {
+      "date": "2026-06-01",
+      "entries": 8665
+    },
+    {
+      "date": "2026-06-02",
+      "entries": 8068
+    },
+    {
+      "date": "2026-06-03",
+      "entries": 9040
+    },
+    {
+      "date": "2026-06-04",
+      "entries": 7829
+    },
+    {
+      "date": "2026-06-05",
+      "entries": 9562
+    },
+    {
+      "date": "2026-06-06",
+      "entries": 6952
+    },
+    {
+      "date": "2026-06-07",
+      "entries": 6524
+    },
+    {
+      "date": "2026-06-08",
+      "entries": 4685
+    },
+    {
+      "date": "2026-06-09",
+      "entries": 4275
+    },
+    {
+      "date": "2026-06-10",
+      "entries": 7640
+    },
+    {
+      "date": "2026-06-11",
+      "entries": 7950
+    },
+    {
+      "date": "2026-06-12",
+      "entries": 6740
+    },
+    {
+      "date": "2026-06-13",
+      "entries": 6617
+    },
+    {
+      "date": "2026-06-14",
+      "entries": 5169
+    },
+    {
+      "date": "2026-06-15",
+      "entries": 7744
+    },
+    {
+      "date": "2026-06-16",
+      "entries": 1087
+    },
+    {
+      "date": "2026-06-17",
+      "entries": 1474
+    },
+    {
+      "date": "2026-06-18",
+      "entries": 992
+    },
+    {
+      "date": "2026-06-19",
+      "entries": 920
+    },
+    {
+      "date": "2026-06-20",
+      "entries": 2476
+    },
+    {
+      "date": "2026-06-21",
+      "entries": 1654
+    },
+    {
+      "date": "2026-06-22",
+      "entries": 1359
+    },
+    {
+      "date": "2026-06-23",
+      "entries": 1897
+    },
+    {
+      "date": "2026-06-24",
+      "entries": 3444
+    },
+    {
+      "date": "2026-06-25",
+      "entries": 1840
+    },
+    {
+      "date": "2026-06-26",
+      "entries": 1530
+    },
+    {
+      "date": "2026-06-27",
+      "entries": 737
+    },
+    {
+      "date": "2026-06-28",
+      "entries": 3904
+    },
+    {
+      "date": "2026-06-29",
+      "entries": 2731
+    },
+    {
+      "date": "2026-06-30",
+      "entries": 1376
+    },
+    {
+      "date": "2026-07-01",
+      "entries": 256
+    },
+    {
+      "date": "2026-07-02",
+      "entries": 705
+    },
+    {
+      "date": "2026-07-03",
+      "entries": 209
+    },
+    {
+      "date": "2026-07-04",
+      "entries": 1385
+    },
+    {
+      "date": "2026-07-05",
+      "entries": 69
+    },
+    {
+      "date": "2026-07-06",
+      "entries": 4
+    },
+    {
+      "date": "2026-07-07",
+      "entries": 3
+    },
+    {
+      "date": "2026-07-08",
+      "entries": 52
+    },
+    {
+      "date": "2026-07-09",
+      "entries": 5
+    },
+    {
+      "date": "2026-07-10",
+      "entries": 50
+    },
+    {
+      "date": "2026-07-11",
+      "entries": 9
+    },
+    {
+      "date": "2026-07-12",
+      "entries": 7
+    },
+    {
+      "date": "2026-07-14",
+      "entries": 8
+    },
+    {
+      "date": "2026-07-15",
+      "entries": 133
+    },
+    {
+      "date": "2026-07-16",
+      "entries": 13
+    },
+    {
+      "date": "2026-07-17",
+      "entries": 93
+    },
+    {
+      "date": "2026-07-19",
+      "entries": 17
+    },
+    {
+      "date": "2026-07-20",
+      "entries": 4
+    },
+    {
+      "date": "2026-07-21",
+      "entries": 19
+    },
+    {
+      "date": "2026-07-22",
+      "entries": 62
+    },
+    {
+      "date": "2026-07-24",
+      "entries": 1
+    }
+  ]
+}
