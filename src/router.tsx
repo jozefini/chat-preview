@@ -8,9 +8,17 @@ import { RootLayout } from '@/routes/root'
 import { DayRoute } from '@/routes/day'
 import { daysWithData, hasMessages, indexQuery, nearestDayWithData } from '@/lib/data'
 import { queryClient } from '@/lib/queryClient'
+import { readRole } from '@/lib/auth'
 import { DEFAULT_SEARCH, validateDaySearch } from '@/lib/search'
 
 const rootRoute = createRootRoute({ component: RootLayout })
+
+/**
+ * Loaders run outside the component tree, so they read the role from storage
+ * rather than context. `main.tsx` invalidates the router whenever the role
+ * changes, so nothing here is ever left over from the previous session.
+ */
+const isAdmin = () => readRole() === 'admin'
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -18,7 +26,7 @@ const indexRoute = createRoute({
   /** Land on the most recent day that actually has messages. */
   loader: async () => {
     const index = await queryClient.ensureQueryData(indexQuery)
-    const withData = daysWithData(index)
+    const withData = daysWithData(index, isAdmin())
     const latest = withData[withData.length - 1]
     if (latest) {
       throw redirect({
@@ -48,19 +56,24 @@ const dayRoute = createRoute({
   component: DayRoute,
   validateSearch: validateDaySearch,
   /**
-   * A date outside the publish window, or one holding no messages, is a dead
-   * end — so it never renders. Redirect to the nearest day that does have
+   * A date this viewer may not open, or one holding no messages for them, is a
+   * dead end — so it never renders. Redirect to the nearest day that does have
    * messages, which is also what makes a single-day archive land on that day
-   * however you arrived. Filters reset to `DEFAULT_SEARCH` (full time-of-day
-   * window): the ones in the URL belonged to a day you are no longer on, and
-   * carrying a narrowed range onto a different day can land you on a date that
-   * looks empty for a second, unrelated reason.
+   * however you arrived. Both checks are role-aware, so a URL an admin shared
+   * quietly bounces a public visitor to a day they are allowed to see rather
+   * than showing them an empty page for a day that isn't theirs.
+   *
+   * Filters reset to `DEFAULT_SEARCH` (full time-of-day window): the ones in
+   * the URL belonged to a day you are no longer on, and carrying a narrowed
+   * range onto a different day can land you on a date that looks empty for a
+   * second, unrelated reason.
    */
   loader: async ({ params }) => {
+    const admin = isAdmin()
     const index = await queryClient.ensureQueryData(indexQuery)
-    if (hasMessages(index, params.date)) return null
+    if (hasMessages(index, params.date, admin)) return null
 
-    const nearest = nearestDayWithData(index, params.date)
+    const nearest = nearestDayWithData(index, params.date, admin)
     throw redirect(
       nearest
         ? { to: '/d/$date', params: { date: nearest }, search: DEFAULT_SEARCH }

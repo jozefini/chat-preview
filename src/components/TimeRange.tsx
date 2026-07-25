@@ -1,21 +1,29 @@
-import { WINDOW_START_MIN, WINDOW_END_MIN } from '@/config'
+import { formatClock } from '@/config'
 
 interface Props {
   fromMin: number
   toMin: number
+  /** Outer bounds — the day's visible window for this viewer. */
+  minMin: number
+  maxMin: number
   onChange: (from: number, to: number) => void
 }
 
-function fmt(min: number) {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
-}
-
 /**
- * Time-of-day narrowing *within* the published window. The config window is
- * the hard outer bound — these sliders can only tighten it, never widen it.
+ * Time-of-day narrowing *within* the day's visible window. The window is the
+ * hard outer bound — these sliders can only tighten it, never widen it, and
+ * widening them wouldn't help anyway: messages outside the window were dropped
+ * when the day was decoded.
+ *
+ * The bounds move per day, since each allowed date carries its own window.
  */
-export function TimeRange({ fromMin, toMin, onChange }: Props) {
-  const atFull = fromMin <= WINDOW_START_MIN && toMin >= WINDOW_END_MIN
+export function TimeRange({ fromMin, toMin, minMin, maxMin, onChange }: Props) {
+  // The URL carries whole-day defaults, so on a windowed day the incoming
+  // values can sit outside the slider's range. Clamp for display rather than
+  // rewriting the URL — out there the filter is a no-op anyway.
+  const from = Math.min(Math.max(fromMin, minMin), maxMin)
+  const to = Math.min(Math.max(toMin, minMin), maxMin)
+  const atFull = from <= minMin && to >= maxMin
 
   return (
     <div>
@@ -24,7 +32,7 @@ export function TimeRange({ fromMin, toMin, onChange }: Props) {
           Time of day
         </label>
         <span className="font-mono text-[11px] text-neutral-300 tabular-nums">
-          {fmt(fromMin)} – {fmt(toMin)}
+          {formatClock(from)} – {formatClock(to)}
         </span>
       </div>
 
@@ -32,21 +40,21 @@ export function TimeRange({ fromMin, toMin, onChange }: Props) {
         <input
           type="range"
           aria-label="Earliest time"
-          min={WINDOW_START_MIN}
-          max={WINDOW_END_MIN}
+          min={minMin}
+          max={maxMin}
           step={15}
-          value={fromMin}
-          onChange={(e) => onChange(Math.min(Number(e.target.value), toMin), toMin)}
+          value={from}
+          onChange={(e) => onChange(Math.min(Number(e.target.value), to), to)}
           className="accent-sky-400"
         />
         <input
           type="range"
           aria-label="Latest time"
-          min={WINDOW_START_MIN}
-          max={WINDOW_END_MIN}
+          min={minMin}
+          max={maxMin}
           step={15}
-          value={toMin}
-          onChange={(e) => onChange(fromMin, Math.max(Number(e.target.value), fromMin))}
+          value={to}
+          onChange={(e) => onChange(from, Math.max(Number(e.target.value), from))}
           className="accent-sky-400"
         />
       </div>
@@ -54,7 +62,7 @@ export function TimeRange({ fromMin, toMin, onChange }: Props) {
       {!atFull && (
         <button
           type="button"
-          onClick={() => onChange(WINDOW_START_MIN, WINDOW_END_MIN)}
+          onClick={() => onChange(minMin, maxMin)}
           className="mt-1.5 cursor-pointer text-[11px] text-sky-400 hover:text-sky-300"
         >
           Reset to full window

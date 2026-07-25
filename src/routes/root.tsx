@@ -1,12 +1,13 @@
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { dayQuery, indexQuery } from '@/lib/data'
+import { dayQuery, daysWithData, indexQuery } from '@/lib/data'
 import { Calendar } from '@/components/Calendar'
 import { Drawer } from '@/components/Drawer'
 import { EmoteContext } from '@/components/MessageText'
-import { PUBLISH, IS_FULL_DAY_WINDOW } from '@/config'
+import { PUBLIC_WINDOWS } from '@/config'
 import { DEFAULT_SEARCH } from '@/lib/search'
+import { useAuth } from '@/lib/auth'
 import { ShellContext } from '@/lib/shell'
 import { useZoom } from '@/lib/useZoom'
 import type { ArchiveIndex } from '@/types'
@@ -17,17 +18,20 @@ export function RootLayout() {
   const qc = useQueryClient()
   const { data: index, isPending, error } = useQuery(indexQuery)
   const { zoom, zoomIn, zoomOut, reset: resetZoom } = useZoom()
+  const { isAdmin, logout } = useAuth()
 
   const [calendarOpen, setCalendarOpen] = useState(false)
 
-  const available = useMemo(() => index?.days.filter((d) => d.count > 0) ?? [], [index])
+  // Days *this viewer* can open — what ←/→ steps through, so the arrows never
+  // land a public visitor on a day the router would just bounce them off.
+  const available = useMemo(() => (index ? daysWithData(index, isAdmin) : []), [index, isAdmin])
   const selected = params.date
 
   const prefetch = useCallback(
     (date: string) => {
-      void qc.prefetchQuery(dayQuery(date))
+      void qc.prefetchQuery(dayQuery(date, isAdmin))
     },
-    [qc],
+    [qc, isAdmin],
   )
 
   const goToDay = useCallback(
@@ -96,13 +100,14 @@ export function RootLayout() {
         ) : (
           <Calendar
             days={index!.days}
+            isAdmin={isAdmin}
             selected={selected}
             onSelect={goToDay}
             onPrefetch={prefetch}
           />
         )}
       </div>
-      {index && <ArchiveTotals index={index} />}
+      {index && <ArchiveTotals index={index} isAdmin={isAdmin} onLogout={logout} />}
     </>
   )
 
@@ -117,7 +122,7 @@ export function RootLayout() {
           <aside className="hidden w-[300px] flex-shrink-0 flex-col border-r border-white/10 bg-black/40 lg:flex">
             <div className="border-b border-white/10 px-4 py-3">
               <h1 className="text-sm font-semibold tracking-tight">Chat Preview</h1>
-              <PublishWindowNote />
+              <PublishWindowNote isAdmin={isAdmin} />
             </div>
             {sidebarBody}
           </aside>
@@ -129,7 +134,7 @@ export function RootLayout() {
             title="Calendar"
           >
             <div className="border-b border-white/10 px-4 py-2">
-              <PublishWindowNote />
+              <PublishWindowNote isAdmin={isAdmin} />
             </div>
             {sidebarBody}
           </Drawer>
@@ -143,35 +148,57 @@ export function RootLayout() {
   )
 }
 
-function PublishWindowNote() {
+/** One line under the title saying what this session can reach. */
+function PublishWindowNote({ isAdmin }: { isAdmin: boolean }) {
+  if (isAdmin) {
+    return (
+      <p className="mt-0.5 text-[11px] text-neutral-500">
+        <span className="font-medium text-amber-400/90">Admin</span> · full archive
+      </p>
+    )
+  }
+
+  const n = PUBLIC_WINDOWS.size
   return (
     <p className="mt-0.5 text-[11px] text-neutral-500">
-      {PUBLISH.START_DATE} → {PUBLISH.END_DATE}
-      {!IS_FULL_DAY_WINDOW && (
-        <>
-          {' · '}
-          <span className="text-amber-400/80">
-            {PUBLISH.START_TIME}–{PUBLISH.END_TIME} only
-          </span>
-        </>
-      )}
+      {n === 1 ? '1 published day' : `${n} published days`}
     </p>
   )
 }
 
-function ArchiveTotals({ index }: { index: ArchiveIndex }) {
+function ArchiveTotals({
+  index,
+  isAdmin,
+  onLogout,
+}: {
+  index: ArchiveIndex
+  isAdmin: boolean
+  onLogout: () => void
+}) {
+  // Public totals count only what the allowed windows expose, so the sidebar
+  // never advertises a corpus the visitor can't actually open.
+  const days = isAdmin ? index.totals.daysWithData : index.totals.publicDaysWithData
+  const messages = isAdmin ? index.totals.messages : index.totals.publicMessages
+
   return (
     <div className="flex-shrink-0 border-t border-white/10 px-4 py-3 text-[11px] text-neutral-500">
       <div className="flex justify-between">
         <span>Days</span>
-        <span className="text-neutral-300 tabular-nums">{index.totals.daysWithData}</span>
+        <span className="text-neutral-300 tabular-nums">{days}</span>
       </div>
       <div className="flex justify-between">
         <span>Messages</span>
         <span className="text-neutral-300 tabular-nums">
-          {index.totals.messages.toLocaleString('en-US')}
+          {messages.toLocaleString('en-US')}
         </span>
       </div>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="mt-2.5 w-full cursor-pointer rounded-md border border-white/10 px-2 py-1.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100"
+      >
+        Log out{isAdmin ? ' of admin' : ''}
+      </button>
     </div>
   )
 }

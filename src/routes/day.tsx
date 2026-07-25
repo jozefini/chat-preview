@@ -8,8 +8,9 @@ import { TimeRange } from '@/components/TimeRange'
 import { Drawer } from '@/components/Drawer'
 import { ZoomControl } from '@/components/ZoomControl'
 import { filterMessages, splitTerms, type Filters, type TypeFilter } from '@/lib/filter'
-import { WINDOW_START_MIN, WINDOW_END_MIN, isPublishedDate, PUBLISH } from '@/config'
+import { FULL_DAY, formatClock, isFullDay, visibleWindow } from '@/config'
 import { DEFAULT_SEARCH, type DaySearch } from '@/lib/search'
+import { useAuth } from '@/lib/auth'
 import { useShell } from '@/lib/shell'
 
 /** Text input pushes to the URL on a delay; the URL stays the source of truth. */
@@ -27,8 +28,17 @@ export function DayRoute() {
   const search = useSearch({ from: '/d/$date' })
   const navigate = useNavigate()
   const shell = useShell()
+  const { isAdmin } = useAuth()
 
-  const { data: day, isPending, error } = useQuery(dayQuery(date))
+  /**
+   * What this viewer may see of this day, or `null` if nothing. The `??`
+   * fallback only feeds the hooks below — an off-limits day bails out with a
+   * message further down, after every hook has run.
+   */
+  const allowed = visibleWindow(date, isAdmin)
+  const win = allowed ?? FULL_DAY
+
+  const { data: day, isPending, error } = useQuery(dayQuery(date, isAdmin))
 
   const [qInput, setQInput] = useState(search.q)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -107,17 +117,18 @@ export function DayRoute() {
 
   const total = day?.messages.length ?? 0
   const isFiltered = filtered.length !== total
+  const timeNarrowed = search.from > win.fromMin || search.to < win.toMin
   const activeCount =
     (search.q.trim() ? 1 : 0) +
     authorSet.size +
     (search.type !== 'all' ? 1 : 0) +
-    (search.from > WINDOW_START_MIN || search.to < WINDOW_END_MIN ? 1 : 0)
+    (timeNarrowed ? 1 : 0)
 
-  if (!isPublishedDate(date)) {
+  if (!allowed) {
     return (
       <Centered
-        title="Outside the published range"
-        body={`${date} is not published. The window is ${PUBLISH.START_DATE} → ${PUBLISH.END_DATE}.`}
+        title="Not published"
+        body={`${date} is not part of this archive's published days.`}
       />
     )
   }
@@ -131,6 +142,8 @@ export function DayRoute() {
       <TimeRange
         fromMin={search.from}
         toMin={search.to}
+        minMin={win.fromMin}
+        maxMin={win.toMin}
         onChange={(from, to) => patch({ from, to })}
       />
       <label className="flex cursor-pointer items-center gap-2 text-[11px] text-neutral-400">
@@ -185,6 +198,16 @@ export function DayRoute() {
               ) : (
                 <>
                   {total.toLocaleString('en-US')} {plural(total)}
+                </>
+              )}
+              {/* Say why the day looks short, rather than leaving the viewer to
+                  wonder where the rest of it went. */}
+              {!isFullDay(win) && (
+                <>
+                  {' · '}
+                  <span className="text-amber-400/80">
+                    {formatClock(win.fromMin)}–{formatClock(win.toMin)} only
+                  </span>
                 </>
               )}
             </p>
@@ -259,17 +282,17 @@ export function DayRoute() {
             {search.type !== 'all' && (
               <Chip label={search.type} onClear={() => patch({ type: 'all' })} />
             )}
-            {(search.from > WINDOW_START_MIN || search.to < WINDOW_END_MIN) && (
+            {timeNarrowed && (
               <Chip
-                label={`${fmtMin(search.from)}–${fmtMin(search.to)}`}
-                onClear={() => patch({ from: WINDOW_START_MIN, to: WINDOW_END_MIN })}
+                label={`${formatClock(search.from)}–${formatClock(search.to)}`}
+                onClear={() => patch({ from: win.fromMin, to: win.toMin })}
               />
             )}
             <button
               type="button"
               onClick={() => {
                 setQInput('')
-                patch({ q: '', a: '', type: 'all', from: WINDOW_START_MIN, to: WINDOW_END_MIN })
+                patch({ q: '', a: '', type: 'all', from: win.fromMin, to: win.toMin })
               }}
               className="ml-1 cursor-pointer text-[11px] text-neutral-400 underline-offset-2 hover:text-neutral-200 hover:underline"
             >
@@ -310,10 +333,6 @@ export function DayRoute() {
 
 function plural(n: number) {
   return n === 1 ? 'message' : 'messages'
-}
-
-function fmtMin(min: number) {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 }
 
 function formatDate(date: string) {

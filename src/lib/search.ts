@@ -1,4 +1,4 @@
-import { WINDOW_START_MIN, WINDOW_END_MIN } from '@/config'
+import { DAY_START_MIN, DAY_END_MIN } from '@/config'
 import type { TypeFilter } from './filter'
 
 /**
@@ -14,7 +14,14 @@ export interface DaySearch {
   /** Selected authors, joined by `AUTHOR_SEP`. */
   a: string
   type: TypeFilter
-  /** Minute-of-day bounds, always clamped to the published window. */
+  /**
+   * Minute-of-day bounds for the slider, clamped to a whole day.
+   *
+   * These only ever NARROW what is already on screen. The published window for
+   * the day is enforced upstream, when the day is decoded — by the time these
+   * apply, out-of-window messages do not exist, so a hand-widened `from=0` on
+   * an evening-only day reveals nothing.
+   */
   from: number
   to: number
   /** Match author names against `q` too. */
@@ -26,26 +33,26 @@ export const DEFAULT_SEARCH: DaySearch = {
   q: '',
   a: '',
   type: 'all',
-  from: WINDOW_START_MIN,
-  to: WINDOW_END_MIN,
+  from: DAY_START_MIN,
+  to: DAY_END_MIN,
   sa: false,
 }
 
 function clampMin(v: unknown, fallback: number): number {
   const n = Number(v)
   if (!Number.isFinite(n)) return fallback
-  return Math.min(Math.max(Math.round(n), WINDOW_START_MIN), WINDOW_END_MIN)
+  return Math.min(Math.max(Math.round(n), DAY_START_MIN), DAY_END_MIN)
 }
 
 /**
  * Coerces raw URL params into a valid `DaySearch`. Hand-edited URLs can't put
  * the app into a bad state: unknown types fall back to `all`, and the time
- * bounds are clamped into the published window rather than trusted.
+ * bounds are clamped to a real clock rather than trusted.
  */
 export function validateDaySearch(raw: Record<string, unknown>): DaySearch {
   const type = raw.type
-  const from = clampMin(raw.from, WINDOW_START_MIN)
-  const to = clampMin(raw.to, WINDOW_END_MIN)
+  const from = clampMin(raw.from, DAY_START_MIN)
+  const to = clampMin(raw.to, DAY_END_MIN)
 
   return {
     q: typeof raw.q === 'string' ? raw.q : '',

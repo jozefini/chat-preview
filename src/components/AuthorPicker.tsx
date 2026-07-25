@@ -29,7 +29,11 @@ export function AuthorPicker({ authors, selected, onChange }: Props) {
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    // `h-full` is load-bearing: without a definite height here, the `flex-1` on
+    // the scroll container below resolves against an auto-height parent, so the
+    // list grows to fit every author instead of scrolling. On a busy day that
+    // overflows the viewport and drags the whole page into scrolling.
+    <div className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center justify-between">
         <label className="text-[11px] font-semibold tracking-wide text-neutral-400 uppercase">
           Authors

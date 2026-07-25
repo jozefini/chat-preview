@@ -17,8 +17,8 @@ export interface RawDay {
   m: RawMessage[]
 }
 
-export interface DayMeta {
-  date: string
+/** What a day looks like from one viewpoint. Counts already have a window applied. */
+export interface DayStats {
   count: number
   replies: number
   authors: number
@@ -27,21 +27,34 @@ export interface DayMeta {
   topAuthors: string[]
 }
 
+/**
+ * A day in the index, summarised twice: the top-level fields are the whole day
+ * (what an admin sees) and `pub` is the same day narrowed to its public clock
+ * window. `pub: null` means the date is not in `ALLOWED_DATES` at all — for a
+ * public visitor the day does not exist, which is different from a published
+ * day that happens to be empty (`pub.count === 0`).
+ */
+export interface DayMeta extends DayStats {
+  date: string
+  pub: DayStats | null
+}
+
 export interface ArchiveIndex {
   generatedAt: string
   archive: string
   config: {
-    startDate: string
-    endDate: string
-    startTime: string
-    endTime: string
     tzOffsetMinutes: number
+    /** Snapshot of `ALLOWED_DATES` at prep time, with windows resolved. */
+    allowedDates: { date: string; from: string; to: string }[]
   }
   totals: {
     days: number
     daysWithData: number
     messages: number
-    droppedByWindow: number
+    publicDaysWithData: number
+    publicMessages: number
+    /** Rows with no usable timestamp — a data problem, not a window trim. */
+    droppedInvalid: number
   }
   /** emote token (`"[KEKW]"`) → filename under `/emojis/` */
   emotes: Record<string, string>

@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { ArchiveIndex, DayMeta, DecodedDay, Message, RawDay } from '@/types'
-import { isPublishedDate, isPublishedMinute } from '@/config'
+import type { ArchiveIndex, DayMeta, DayStats, DecodedDay, Message, RawDay } from '@/types'
+import { isVisibleMinute, visibleWindow, type Window } from '@/config'
 
 const BASE = `${import.meta.env.BASE_URL}data`
 
@@ -15,14 +15,19 @@ function pad2(n: number) {
 }
 
 /**
- * Compact day payload → renderable messages.
+ * Compact day payload → renderable messages, trimmed to `win`.
  *
- * Runs once per day (TanStack Query caches the result for the session), and is
- * where the per-message work happens that keeps filtering cheap later:
- * lowercasing for search and deriving minute-of-day for the time filter, so
- * neither has to be recomputed on every keystroke.
+ * Runs once per day per role (TanStack Query caches the result for the
+ * session), and is where the per-message work happens that keeps filtering
+ * cheap later: lowercasing for search and deriving minute-of-day for the time
+ * filter, so neither has to be recomputed on every keystroke.
+ *
+ * It is also where the public clock window is actually enforced. Day files now
+ * hold the entire day so admins can read it, which makes this the ONLY thing
+ * standing between a public session and the hours it isn't meant to see —
+ * messages outside `win` never enter the array the UI renders from.
  */
-function decodeDay(raw: RawDay): DecodedDay {
+function decodeDay(raw: RawDay, win: Window): DecodedDay {
   const messages: Message[] = []
   const counts = new Map<number, number>()
 
@@ -31,9 +36,7 @@ function decodeDay(raw: RawDay): DecodedDay {
     const delta = row[0]
     const min = Math.floor(delta / 60_000)
 
-    // Second enforcement of the publish window: a day file cached from a wider
-    // window can't leak messages the current config excludes.
-    if (!isPublishedMinute(min)) continue
+    if (!isVisibleMinute(min, win)) continue
 
     const ai = row[1]
     const author = raw.a[ai] ?? ['', '']
@@ -101,15 +104,27 @@ function dayNumber(date: string): number {
 }
 
 /**
- * Days that are both inside the publish window and actually hold messages —
- * the only dates the app should ever route to. Ascending, as prep emits them.
+ * This day as the viewer sees it, or `null` when the day is off-limits to
+ * them. Admins get the whole-day summary; everyone else gets the `pub` block
+ * prep computed against that date's clock window.
  */
-export function daysWithData(index: ArchiveIndex): DayMeta[] {
-  return index.days.filter((d) => d.count > 0 && isPublishedDate(d.date))
+export function statsFor(meta: DayMeta, isAdmin: boolean): DayStats | null {
+  return isAdmin ? meta : meta.pub
 }
 
-export function hasMessages(index: ArchiveIndex, date: string): boolean {
-  return daysWithData(index).some((d) => d.date === date)
+/**
+ * Days this viewer may open that actually hold messages for them — the only
+ * dates the app should ever route to. Ascending, as prep emits them.
+ *
+ * A day can be published and still fall out here: if its public window covers
+ * hours nobody talked in, `pub.count` is 0 and the day is a dead end.
+ */
+export function daysWithData(index: ArchiveIndex, isAdmin: boolean): DayMeta[] {
+  return index.days.filter((d) => (statsFor(d, isAdmin)?.count ?? 0) > 0)
+}
+
+export function hasMessages(index: ArchiveIndex, date: string, isAdmin: boolean): boolean {
+  return daysWithData(index, isAdmin).some((d) => d.date === date)
 }
 
 /**
@@ -121,8 +136,12 @@ export function hasMessages(index: ArchiveIndex, date: string): boolean {
  * changes under you. An unparseable date has no meaningful neighbour, so it
  * falls back to the most recent day.
  */
-export function nearestDayWithData(index: ArchiveIndex, date: string): string | null {
-  const days = daysWithData(index)
+export function nearestDayWithData(
+  index: ArchiveIndex,
+  date: string,
+  isAdmin: boolean,
+): string | null {
+  const days = daysWithData(index, isAdmin)
   if (!days.length) return null
 
   const target = dayNumber(date)
@@ -147,14 +166,23 @@ export const indexQuery = queryOptions({
   staleTime: Infinity,
 })
 
-export function dayQuery(date: string) {
+/**
+ * One day, decoded for one role.
+ *
+ * The role is part of the cache key on purpose: the same file decodes to two
+ * different message lists, and a public session must never be handed the entry
+ * an admin session warmed. (Logging out clears the cache too — belt and
+ * braces, since the key alone already keeps them apart.)
+ */
+export function dayQuery(date: string, isAdmin: boolean) {
   return queryOptions({
-    queryKey: ['day', date],
+    queryKey: ['day', date, isAdmin ? 'admin' : 'public'],
     queryFn: async ({ signal }) => {
-      if (!isPublishedDate(date)) {
-        throw new Error(`${date} is outside the published date range.`)
-      }
-      return decodeDay(await getJson<RawDay>(`${BASE}/days/${date}.json`, signal))
+      const win = visibleWindow(date, isAdmin)
+      // Refuse before fetching: an off-limits date should not even produce a
+      // request for its JSON.
+      if (!win) throw new Error(`${date} is not published.`)
+      return decodeDay(await getJson<RawDay>(`${BASE}/days/${date}.json`, signal), win)
     },
     // A day file is immutable once prepped, so never refetch it in a session.
     staleTime: Infinity,
