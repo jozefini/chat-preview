@@ -26,6 +26,13 @@
 :root {
   --chat-zoom: 1.3;
 }
+/* Phones get exact extension sizing by default — see ZOOM_DEFAULT_NARROW in
+   useZoom.ts, which this mirrors so the fallback never disagrees with the app. */
+@media (max-width: 639px) {
+  :root {
+    --chat-zoom: 1;
+  }
+}
 
 .chat-pane {
   /* DELIBERATE DEVIATION: the extension packs rows 3px apart, which reads as a

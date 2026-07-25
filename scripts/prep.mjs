@@ -19,6 +19,13 @@
  * them, after that day's clock window is applied — so the calendar can size
  * and label its cells per role without downloading anything.
  *
+ * And public/data/stats.json: the ALL-TIME leaderboard, one row per person
+ * across every day in the archive. It has to be built here because that is the
+ * only place the whole archive is ever walked — the app would otherwise have to
+ * download all ~100 day files to answer "who talked the most". The admin-only
+ * /stats page reads it. Same caveat as the day files: it is served without
+ * authentication, so treat the URL as public even though the page isn't.
+ *
  * Run: npm run prep
  */
 import fs from 'node:fs/promises'
@@ -133,6 +140,106 @@ function summarize(authors, counts, count, replies, firstMs, lastMs) {
   }
 }
 
+// ── all-time leaderboard ────────────────────────────────────────────────────
+
+/**
+ * Per-person tallies for ONE day, keyed by display name.
+ *
+ * Keyed by name and not by the (name, colour) entry the day file interns:
+ * people change colour, so one person owns several dictionary entries and
+ * counting entries would rank the same person several times, each with a slice
+ * of their real total.
+ */
+function newPerson() {
+  return {
+    count: 0,
+    /** Messages they sent that were replies to someone. */
+    replies: 0,
+    /** Messages someone else sent as a reply to them. */
+    received: 0,
+    firstMs: Infinity,
+    lastMs: -Infinity,
+    /** colour → messages sent in it, so the leaderboard can show their usual one. */
+    colors: new Map(),
+  }
+}
+
+/**
+ * Folds one day's per-person tallies into the running all-time map.
+ *
+ * `received` is tracked for people who never spoke that day (you can be replied
+ * to on a day you said nothing), which is why every roll-up here is guarded on
+ * `count > 0`: a day you were only mentioned is not a day you were active, and
+ * it must not move your first-seen date or your busiest day.
+ */
+function foldDay(allTime, date, people) {
+  for (const [name, p] of people) {
+    if (!name) continue // Nameless rows are an archive artifact, not a person.
+
+    let a = allTime.get(name)
+    if (!a) {
+      a = {
+        name,
+        messages: 0,
+        replies: 0,
+        received: 0,
+        days: 0,
+        firstMs: Infinity,
+        lastMs: -Infinity,
+        bestDate: null,
+        bestCount: 0,
+        colors: new Map(),
+      }
+      allTime.set(name, a)
+    }
+
+    a.messages += p.count
+    a.replies += p.replies
+    a.received += p.received
+    if (!p.count) continue
+
+    a.days++
+    // `>` not `>=`: ties keep the earliest day, so the busiest-day column is
+    // stable across re-runs instead of drifting to whichever day sorted last.
+    if (p.count > a.bestCount) {
+      a.bestCount = p.count
+      a.bestDate = date
+    }
+    if (p.firstMs < a.firstMs) a.firstMs = p.firstMs
+    if (p.lastMs > a.lastMs) a.lastMs = p.lastMs
+    for (const [color, n] of p.colors) a.colors.set(color, (a.colors.get(color) ?? 0) + n)
+  }
+}
+
+/** All-time map → the ranked rows the page renders, busiest first. */
+function rankAuthors(allTime) {
+  return [...allTime.values()]
+    .filter((a) => a.messages > 0)
+    .sort((x, y) => y.messages - x.messages || x.name.localeCompare(y.name))
+    .map((a) => {
+      let color = ''
+      let best = 0
+      for (const [c, n] of a.colors) {
+        if (c && n > best) {
+          best = n
+          color = c
+        }
+      }
+      return {
+        name: a.name,
+        color,
+        messages: a.messages,
+        replies: a.replies,
+        received: a.received,
+        days: a.days,
+        firstMs: a.firstMs === Infinity ? null : a.firstMs,
+        lastMs: a.lastMs === -Infinity ? null : a.lastMs,
+        bestDate: a.bestDate,
+        bestCount: a.bestCount,
+      }
+    })
+}
+
 // ── emotes ──────────────────────────────────────────────────────────────────
 
 /**
@@ -223,6 +330,10 @@ async function main() {
   let totalKept = 0
   let totalDropped = 0
   let totalPublic = 0
+  let totalReplies = 0
+
+  /** name → all-time tallies, grown one day at a time. See `foldDay`. */
+  const allTime = new Map()
 
   for (const file of allFiles) {
     const date = file.slice(5, 15)
@@ -264,6 +375,19 @@ async function main() {
     let firstMs = Infinity
     let lastMs = -Infinity
 
+    // This day's leaderboard contribution, by person rather than by author
+    // entry. Folded into `allTime` once the day is walked.
+    /** @type {Map<string, ReturnType<typeof newPerson>>} */
+    const people = new Map()
+    const person = (name) => {
+      let p = people.get(name)
+      if (!p) {
+        p = newPerson()
+        people.set(name, p)
+      }
+      return p
+    }
+
     // The same tallies again, but counting only what a public visitor would
     // see. Kept in lockstep with the full ones rather than recomputed later,
     // so the day is walked exactly once.
@@ -289,6 +413,16 @@ async function main() {
 
       const ai = intern(row.author, row.authorColor)
       authorCounts[ai]++
+
+      // All-time tallies count the WHOLE archive: the leaderboard lives behind
+      // the admin password, so no public window applies to it.
+      const me = person(String(row.author ?? ''))
+      me.count++
+      if (ms < me.firstMs) me.firstMs = ms
+      if (ms > me.lastMs) me.lastMs = ms
+      const color = String(row.authorColor ?? '')
+      if (color) me.colors.set(color, (me.colors.get(color) ?? 0) + 1)
+
       if (isPublic) {
         pubAuthorCounts[ai] = (pubAuthorCounts[ai] ?? 0) + 1
         pubKept++
@@ -309,6 +443,9 @@ async function main() {
         const ri = intern(reply.to, reply.toColor)
         messages.push([delta, ai, text, ri, String(reply.targetWrote ?? reply.preview ?? '')])
         replies++
+        me.replies++
+        // Credited to the person replied TO, who may not have spoken today.
+        if (reply.to) person(String(reply.to)).received++
         if (isPublic) pubReplies++
       } else {
         messages.push([delta, ai, text])
@@ -327,6 +464,8 @@ async function main() {
     totalKept += kept
     totalDropped += dropped
     totalPublic += pubKept
+    totalReplies += replies
+    foldDay(allTime, date, people)
 
     index.push({
       ...summarize(authors, authorCounts, kept, replies, firstMs, lastMs),
@@ -378,6 +517,30 @@ async function main() {
   await fs.writeFile(path.join(OUT_DIR, 'index.json'), indexJson)
   outBytes += Buffer.byteLength(indexJson)
 
+  // ── all-time leaderboard ──────────────────────────────────────────────────
+  const ranked = rankAuthors(allTime)
+  const active = index.filter((d) => d.count > 0).map((d) => d.date)
+
+  const statsPayload = {
+    generatedAt: indexPayload.generatedAt,
+    archive: path.basename(archiveDir),
+    span: {
+      from: active[0] ?? null,
+      to: active[active.length - 1] ?? null,
+      days: daysWithData,
+    },
+    totals: {
+      messages: totalKept,
+      replies: totalReplies,
+      authors: ranked.length,
+    },
+    authors: ranked,
+  }
+
+  const statsJson = JSON.stringify(statsPayload)
+  await fs.writeFile(path.join(OUT_DIR, 'stats.json'), statsJson)
+  outBytes += Buffer.byteLength(statsJson)
+
   const secs = ((performance.now() - t0) / 1000).toFixed(1)
 
   console.log()
@@ -394,6 +557,12 @@ async function main() {
   console.log(
     `    ${c.bold('public')}     ${publicDaysWithData} day(s) · ` +
       `${totalPublic.toLocaleString('en-US')} message(s) visible without the admin password`,
+  )
+  console.log(
+    `    people     ${c.bold(ranked.length.toLocaleString('en-US'))} in the all-time leaderboard` +
+      (ranked.length
+        ? c.dim(`  ·  #1 ${ranked[0].name} (${ranked[0].messages.toLocaleString('en-US')})`)
+        : ''),
   )
   console.log(
     `    size       ${mb(rawBytes)} → ${c.bold(mb(outBytes))}` +

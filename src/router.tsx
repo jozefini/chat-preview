@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { RootLayout } from '@/routes/root'
 import { DayRoute } from '@/routes/day'
+import { StatsRoute } from '@/routes/stats'
 import { daysWithData, hasMessages, indexQuery, nearestDayWithData } from '@/lib/data'
 import { queryClient } from '@/lib/queryClient'
 import { readRole } from '@/lib/auth'
@@ -82,7 +83,25 @@ const dayRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, dayRoute])
+/**
+ * All-time leaderboard, admin only.
+ *
+ * The numbers here span the whole archive — including the days and hours a
+ * public visitor is never shown — so the role check happens in the loader,
+ * before the component mounts and before `stats.json` is ever requested. A
+ * public session that types the URL is bounced to the archive it does have.
+ */
+const statsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/stats',
+  component: StatsRoute,
+  loader: () => {
+    if (!isAdmin()) throw redirect({ to: '/' })
+    return null
+  },
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, dayRoute, statsRoute])
 
 export const router = createRouter({
   routeTree,

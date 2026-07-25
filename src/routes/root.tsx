@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, Outlet, useNavigate, useParams } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dayQuery, daysWithData, indexQuery } from '@/lib/data'
@@ -192,10 +192,22 @@ function ArchiveTotals({
           {messages.toLocaleString('en-US')}
         </span>
       </div>
+      {/* The leaderboard spans the whole archive, so it exists only for admins
+          — a public session is never shown the way in, and the /stats loader
+          turns it away even if the URL is typed by hand. */}
+      {isAdmin && (
+        <Link
+          to="/stats"
+          className="mt-2.5 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-2 py-1.5 text-[11px] font-medium text-amber-200 transition-colors hover:bg-amber-300/20 hover:text-amber-100"
+        >
+          🏆 All-time leaderboard
+        </Link>
+      )}
+
       <button
         type="button"
         onClick={onLogout}
-        className="mt-2.5 w-full cursor-pointer rounded-md border border-white/10 px-2 py-1.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100"
+        className="mt-2 w-full cursor-pointer rounded-md border border-white/10 px-2 py-1.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100"
       >
         Log out{isAdmin ? ' of admin' : ''}
       </button>

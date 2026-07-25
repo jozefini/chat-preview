@@ -9,7 +9,8 @@ interface Props {
 
 /**
  * Chat text size. `1.0×` is exactly the extension's sizing — the label doubles
- * as a reset button so it's always one click back to the reference rendering.
+ * as a reset button, so it's always one click back to whatever this screen
+ * starts at (1.0× on phones, 1.3× on wider ones).
  */
 export function ZoomControl({ zoom, onIn, onOut, onReset }: Props) {
   return (
@@ -26,7 +27,7 @@ export function ZoomControl({ zoom, onIn, onOut, onReset }: Props) {
       <button
         type="button"
         onClick={onReset}
-        title="Reset to 1.0× (exact extension sizing)"
+        title="Reset to the default size for this screen"
         className="cursor-pointer px-1 text-[10px] text-neutral-500 tabular-nums hover:text-neutral-200"
       >
         {zoom.toFixed(2)}×

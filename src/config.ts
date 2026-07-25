@@ -79,6 +79,18 @@ export function formatClock(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 }
 
+/**
+ * Epoch ms → the `YYYY-MM-DD` this instant belongs to *in the archive's
+ * timezone* — the same bucketing prep used to name the day files, so a
+ * timestamp always maps back to a date the calendar actually has.
+ */
+export function toArchiveDate(ms: number): string {
+  const d = new Date(ms - TZ_OFFSET_MINUTES * 60_000)
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${m}-${day}`
+}
+
 /** A resolved visibility window: minute-of-day bounds, both inclusive. */
 export interface Window {
   fromMin: number

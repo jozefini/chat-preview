@@ -61,6 +61,48 @@ export interface ArchiveIndex {
   days: DayMeta[]
 }
 
+/**
+ * One person's all-time record, across every day in the archive — no clock
+ * window applied, because the leaderboard is admin-only.
+ */
+export interface AuthorStat {
+  name: string
+  /** The colour they used for the most messages. May be `''`. */
+  color: string
+  messages: number
+  /** Of those, how many were replies to someone. */
+  replies: number
+  /** Messages other people sent as replies to them. */
+  received: number
+  /** Days on which they sent at least one message. */
+  days: number
+  /** Epoch ms of their first and last message, or `null` if they sent none. */
+  firstMs: number | null
+  lastMs: number | null
+  /** Their busiest single day, and its count. */
+  bestDate: string | null
+  bestCount: number
+}
+
+/** `public/data/stats.json` — the all-time leaderboard, built by prep. */
+export interface ArchiveStats {
+  generatedAt: string
+  archive: string
+  span: {
+    /** First and last day holding messages, or `null` for an empty archive. */
+    from: string | null
+    to: string | null
+    days: number
+  }
+  totals: {
+    messages: number
+    replies: number
+    authors: number
+  }
+  /** Ranked, busiest first. Index 0 is rank 1. */
+  authors: AuthorStat[]
+}
+
 /** A decoded message, ready to render and filter. */
 export interface Message {
   /** Index within the day, before filtering. Stable React key. */

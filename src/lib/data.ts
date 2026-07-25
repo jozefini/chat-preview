@@ -1,5 +1,13 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { ArchiveIndex, DayMeta, DayStats, DecodedDay, Message, RawDay } from '@/types'
+import type {
+  ArchiveIndex,
+  ArchiveStats,
+  DayMeta,
+  DayStats,
+  DecodedDay,
+  Message,
+  RawDay,
+} from '@/types'
 import { isVisibleMinute, visibleWindow, type Window } from '@/config'
 
 const BASE = `${import.meta.env.BASE_URL}data`
@@ -164,6 +172,21 @@ export const indexQuery = queryOptions({
   queryKey: ['index'],
   queryFn: ({ signal }) => getJson<ArchiveIndex>(`${BASE}/index.json`, signal),
   staleTime: Infinity,
+})
+
+/**
+ * The all-time leaderboard. Prep builds it because it is the only pass that
+ * ever sees the whole archive; answering "who talked the most, ever" in the
+ * browser would mean downloading every day file.
+ *
+ * Only ever fetched from the admin-only /stats route — it holds whole-archive
+ * numbers, including days a public visitor is not shown.
+ */
+export const statsQuery = queryOptions({
+  queryKey: ['stats'],
+  queryFn: ({ signal }) => getJson<ArchiveStats>(`${BASE}/stats.json`, signal),
+  staleTime: Infinity,
+  retry: false,
 })
 
 /**
