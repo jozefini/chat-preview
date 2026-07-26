@@ -4,7 +4,13 @@ dist
 *.local
 .vercel
 
-# Source archive (221 MB) stays out of git. `npm run prep` turns it into the
-# much smaller public/data + public/emojis, and THOSE are committed — Vercel
-# builds from the repo and needs them present.
+# Source archives (221 MB + 45 MB) stay out of git. `npm run prep` turns them
+# into the much smaller public/data + public/emojis, and THOSE are committed —
+# Vercel builds from the repo and needs them present.
+#
+# Two patterns because the second archive is deliberately NOT named
+# `chat-archive-*`: prep used to auto-discover the newest folder matching that
+# glob, so a second one would have silently taken over the app. Config names
+# archives explicitly now, but the folder keeps its distinct name.
 chat-archive-*
+chat2-archive-*

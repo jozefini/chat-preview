@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { formatClock, isFullDay, visibleWindow } from '@/config'
+import { formatClock, isFullDay, visibleWindow, type Chat } from '@/config'
 import { statsFor } from '@/lib/data'
 import type { DayMeta, DayStats } from '@/types'
 
@@ -10,6 +10,8 @@ const MONTH_NAMES = [
 ]
 
 interface Props {
+  /** The archive these days belong to — decides each day's publish window. */
+  chat: Chat
   days: DayMeta[]
   /** Admins get every day; everyone else only the published ones. */
   isAdmin: boolean
@@ -45,14 +47,14 @@ function ymd(y: number, m: number, d: number) {
  * visitor with one published day in June gets a June grid, not a year of empty
  * months quietly disclosing how much archive they aren't being shown.
  */
-function buildMonths(days: DayMeta[], isAdmin: boolean): MonthBlock[] {
+function buildMonths(chat: Chat, days: DayMeta[], isAdmin: boolean): MonthBlock[] {
   const byDate = new Map<string, Cell>()
   const visible: string[] = []
 
   for (const meta of days) {
     const stats = statsFor(meta, isAdmin)
     if (!stats) continue
-    const win = visibleWindow(meta.date, isAdmin)
+    const win = visibleWindow(chat, meta.date, isAdmin)
     byDate.set(meta.date, { date: meta.date, stats, partial: !!win && !isFullDay(win) })
     visible.push(meta.date)
   }
@@ -101,8 +103,8 @@ function heat(count: number, max: number): string {
   return `rgba(56, 189, 248, ${(0.1 + t * 0.55).toFixed(3)})`
 }
 
-export function Calendar({ days, isAdmin, selected, onSelect, onPrefetch }: Props) {
-  const months = useMemo(() => buildMonths(days, isAdmin), [days, isAdmin])
+export function Calendar({ chat, days, isAdmin, selected, onSelect, onPrefetch }: Props) {
+  const months = useMemo(() => buildMonths(chat, days, isAdmin), [chat, days, isAdmin])
   // Heat is relative to the busiest day the viewer can actually see, so a
   // one-day public archive still shades that day rather than rendering it as a
   // faint outlier against a maximum it can't reach.
@@ -146,7 +148,7 @@ export function Calendar({ days, isAdmin, selected, onSelect, onPrefetch }: Prop
                 )
               }
 
-              const win = visibleWindow(cell.date, isAdmin)
+              const win = visibleWindow(chat, cell.date, isAdmin)
               const windowNote = cell.partial && win ? ` · ${formatClock(win.fromMin)}–${formatClock(win.toMin)}` : ''
 
               return (

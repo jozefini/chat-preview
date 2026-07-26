@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-07-26T00:27:04.139Z",
+  "chats": [
+    {
+      "id": "ferma-vip",
+      "name": "Ferma VIP",
+      "archive": "chat-archive-2026-07-24-22-48-50",
+      "tzOffsetMinutes": -120,
+      "days": 103,
+      "messages": 548472,
+      "publicDays": 5,
+      "publicMessages": 31877,
+      "from": "2026-04-10",
+      "to": "2026-07-24"
+    },
+    {
+      "id": "bb-vip-al",
+      "name": "BB VIP AL",
+      "archive": "chat2-archive-bbvipalb-2026-07-26",
+      "tzOffsetMinutes": -120,
+      "days": 15,
+      "messages": 105756,
+      "publicDays": 15,
+      "publicMessages": 105756,
+      "from": "2026-04-10",
+      "to": "2026-04-26"
+    }
+  ]
+}

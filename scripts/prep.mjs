@@ -1,51 +1,56 @@
 #!/usr/bin/env node
 /**
- * Turns the raw chat archive into what the app actually ships.
+ * Turns the raw chat archives into what the app actually ships.
  *
- *   chat-archive-<stamp>/days/chat-2026-05-10.json   (4.4 MB, verbose)
+ *   chat-archive-<stamp>/days/chat-2026-05-10.json     (4.4 MB, verbose)
  *        ↓  drop unused fields, dedupe authors, delta-encode timestamps
- *   public/data/days/2026-05-10.json                 (~1 MB, ~200 KB gzipped)
+ *   public/data/ferma-vip/days/2026-05-10.json         (~1 MB, ~200 KB gzipped)
+ *
+ * Runs once per chat in `CHATS` (src/config.ts), each into its own folder under
+ * public/data/ named by chat id — the chats share nothing but the emote images,
+ * so the app can switch between them by swapping one path segment.
  *
  * EVERY day is emitted, in full — an admin has to be able to read the whole
  * archive, and there is nowhere else for that data to come from. What a public
- * visitor may see is decided at RUNTIME from `ALLOWED_DATES` in src/config.ts.
- * The consequence is worth saying out loud: `public/data/` is served without
+ * visitor may see is decided at RUNTIME from each chat's `publish` list. The
+ * consequence is worth saying out loud: `public/data/` is served without
  * authentication, so the day files are readable by anyone who guesses a URL.
  * The password gate limits the app, not the server.
  *
- * Also writes public/data/index.json (everything the calendar needs, so it can
- * render without touching a single day file) and copies the emote images. Each
- * day in the index carries a `pub` block — the counts as a PUBLIC visitor sees
- * them, after that day's clock window is applied — so the calendar can size
- * and label its cells per role without downloading anything.
+ * Per chat it writes:
  *
- * And public/data/stats.json: the ALL-TIME leaderboard, one row per person
- * across every day in the archive. It has to be built here because that is the
- * only place the whole archive is ever walked — the app would otherwise have to
- * download all ~100 day files to answer "who talked the most". The admin-only
- * /stats page reads it. Same caveat as the day files: it is served without
- * authentication, so treat the URL as public even though the page isn't.
+ *   <id>/index.json   everything the calendar needs, so it can render without
+ *                     touching a single day file. Each day carries a `pub`
+ *                     block — the counts as a PUBLIC visitor sees them, after
+ *                     that day's clock window is applied — so the calendar can
+ *                     size and label its cells per role without downloading
+ *                     anything.
+ *   <id>/days/*.json  one file per day, the whole day.
+ *   <id>/stats.json   the ALL-TIME leaderboard, one row per person across every
+ *                     day in that archive. It has to be built here because this
+ *                     is the only place the whole archive is ever walked — the
+ *                     app would otherwise have to download all ~100 day files to
+ *                     answer "who talked the most". The admin-only /stats page
+ *                     reads it. Same caveat as the day files: served without
+ *                     authentication, so treat the URL as public even though the
+ *                     page isn't.
+ *
+ * And one shared `public/data/chats.json`, so a deploy can be inspected without
+ * reading the bundle to find out which archives it carries.
  *
  * Run: npm run prep
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  ALLOWED_DATES,
-  PUBLIC_WINDOWS,
-  TZ_OFFSET_MINUTES,
-  formatClock,
-} from '../src/config.ts'
+import { RESOLVED_CHATS, formatClock } from '../src/config.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WATCH_CHAT = path.resolve(ROOT, '..', 'watch-chat')
 const OUT_DIR = path.join(ROOT, 'public', 'data')
-const OUT_DAYS = path.join(OUT_DIR, 'days')
 const OUT_EMOJIS = path.join(ROOT, 'public', 'emojis')
 
 const MS_PER_DAY = 86_400_000
-const TZ_OFFSET_MS = TZ_OFFSET_MINUTES * 60_000
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,37 +66,40 @@ const c = {
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 /**
- * Epoch ms → minutes since midnight *in the archive's timezone*.
- * `TZ_OFFSET_MINUTES` is minutes west of UTC (UTC+2 → -120), so local time is
+ * Epoch ms → minutes since midnight *in the chat's timezone*.
+ * `tzOffsetMs` is minutes west of UTC (UTC+2 → -120), so local time is
  * `utc - offset`, matching how the archive bucketed its day files.
  */
-function minuteOfDay(ms) {
-  const local = ms - TZ_OFFSET_MS
+function minuteOfDay(ms, tzOffsetMs) {
+  const local = ms - tzOffsetMs
   return Math.floor(((local % MS_PER_DAY) + MS_PER_DAY) % MS_PER_DAY / 60_000)
 }
 
 /** Local midnight of a `YYYY-MM-DD`, as epoch ms. */
-function dayStartMs(date) {
-  return Date.parse(`${date}T00:00:00Z`) + TZ_OFFSET_MS
+function dayStartMs(date, tzOffsetMs) {
+  return Date.parse(`${date}T00:00:00Z`) + tzOffsetMs
 }
 
-/** Newest `chat-archive-*` directory containing a `days/` folder. */
-async function findArchiveDir() {
-  const entries = await fs.readdir(ROOT, { withFileTypes: true })
-  const candidates = entries
-    .filter((e) => e.isDirectory() && e.name.startsWith('chat-archive-'))
-    .map((e) => e.name)
-    .sort()
-    .reverse()
-
-  for (const name of candidates) {
-    const dir = path.join(ROOT, name)
-    if (await exists(path.join(dir, 'days'))) return dir
+/**
+ * A chat's archive directory, verified.
+ *
+ * Named explicitly in the config rather than auto-discovered: prep used to take
+ * the newest `chat-archive-*` folder, which meant dropping a second archive
+ * into the repo silently repointed the entire app at it.
+ */
+async function archiveDirFor(chat) {
+  const dir = path.join(ROOT, chat.archive)
+  if (!(await exists(path.join(dir, 'days')))) {
+    const siblings = (await fs.readdir(ROOT, { withFileTypes: true }))
+      .filter((e) => e.isDirectory() && /archive/.test(e.name))
+      .map((e) => e.name)
+    throw new Error(
+      `Chat "${chat.id}" points at ${chat.archive}/, which has no days/ folder.\n` +
+        `  Archive folders present: ${siblings.length ? siblings.join(', ') : '(none)'}\n` +
+        `  Fix the \`archive\` field in src/config.ts.`,
+    )
   }
-  throw new Error(
-    `No chat-archive-* directory with a days/ folder found in ${ROOT}.\n` +
-      `Export one from the watch-chat extension first.`,
-  )
+  return dir
 }
 
 async function exists(p) {
@@ -287,42 +295,50 @@ async function prepEmotes() {
   return { map, missing }
 }
 
-// ── main ────────────────────────────────────────────────────────────────────
+// ── one chat ────────────────────────────────────────────────────────────────
 
-async function main() {
-  const t0 = performance.now()
-  const archiveDir = await findArchiveDir()
+/**
+ * Reads one chat's archive and writes its `public/data/<id>/` folder.
+ *
+ * Returns the row `chats.json` carries for it — everything a caller needs to
+ * summarise the chat without reopening its index.
+ */
+async function prepChat(chat, emoteMap) {
+  const archiveDir = await archiveDirFor(chat)
+  const tzOffsetMs = chat.tzOffsetMinutes * 60_000
+  const outDir = path.join(OUT_DIR, chat.id)
+  const outDays = path.join(outDir, 'days')
 
-  console.log()
-  console.log(c.bold('chat-preview · prep'))
-  console.log(`  archive ${c.cyan(path.basename(archiveDir))}`)
+  console.log(c.bold(`  ${chat.name}`) + c.dim(`  ·  /c/${chat.id}`))
+  console.log(`    archive ${c.cyan(chat.archive)}`)
   console.log(
-    `  tz      UTC${TZ_OFFSET_MINUTES <= 0 ? '+' : '-'}${Math.abs(TZ_OFFSET_MINUTES) / 60}` +
+    `    tz      UTC${chat.tzOffsetMinutes <= 0 ? '+' : '-'}${Math.abs(chat.tzOffsetMinutes) / 60}` +
       c.dim('  ·  every day is emitted; admin sees all of it'),
   )
-  console.log(`  public  ${c.bold(String(ALLOWED_DATES.length))} allowed date(s)`)
-  for (const [date, w] of PUBLIC_WINDOWS) {
-    const span =
-      w.fromMin === 0 && w.toMin === 1439
-        ? c.dim('whole day')
-        : c.yellow(`${formatClock(w.fromMin)}–${formatClock(w.toMin)}`)
-    console.log(c.dim(`            ${date}  `) + span)
+  if (chat.windows.size === 0) {
+    console.log(
+      c.yellow('    public  nothing published') +
+        c.dim('  ·  admin-only; hidden from the switcher for public visitors'),
+    )
+  } else {
+    console.log(`    public  ${c.bold(String(chat.windows.size))} allowed date(s)`)
+    for (const [date, w] of chat.windows) {
+      const span =
+        w.fromMin === 0 && w.toMin === 1439
+          ? c.dim('whole day')
+          : c.yellow(`${formatClock(w.fromMin)}–${formatClock(w.toMin)}`)
+      console.log(c.dim(`              ${date}  `) + span)
+    }
   }
-  console.log()
 
-  // Fresh output dir so a narrowed window can't leave stale days behind.
-  await fs.rm(OUT_DIR, { recursive: true, force: true })
-  await fs.mkdir(OUT_DAYS, { recursive: true })
-
-  const { map: emoteMap, missing: missingEmotes } = await prepEmotes()
+  await fs.mkdir(outDays, { recursive: true })
 
   const daysDir = path.join(archiveDir, 'days')
   const allFiles = (await fs.readdir(daysDir))
     .filter((f) => /^chat-\d{4}-\d{2}-\d{2}\.json$/.test(f))
     .sort()
 
-  console.log(`  days    ${c.bold(String(allFiles.length))} in archive`)
-  console.log()
+  console.log(`    days    ${c.bold(String(allFiles.length))} in archive`)
 
   const index = []
   let rawBytes = 0
@@ -344,9 +360,9 @@ async function main() {
     /** @type {Array<Record<string, any>>} */
     const rows = JSON.parse(buf.toString('utf8'))
 
-    const dayStart = dayStartMs(date)
+    const dayStart = dayStartMs(date, tzOffsetMs)
     /** This day's public clock window, or `undefined` when it isn't published. */
-    const pubWin = PUBLIC_WINDOWS.get(date)
+    const pubWin = chat.windows.get(date)
 
     // Author dictionary, shared by message authors and reply targets.
     /** @type {Map<string, number>} */
@@ -405,7 +421,7 @@ async function main() {
         continue
       }
 
-      const min = minuteOfDay(ms)
+      const min = minuteOfDay(ms, tzOffsetMs)
       // Nothing is dropped for being out of window any more: the day file has
       // to hold the whole day for admins. `min` now only decides whether this
       // message also counts toward the public totals below.
@@ -458,7 +474,7 @@ async function main() {
 
     const payload = { d: date, s: dayStart, a: authors, m: messages }
     const json = JSON.stringify(payload)
-    await fs.writeFile(path.join(OUT_DAYS, `${date}.json`), json)
+    await fs.writeFile(path.join(outDays, `${date}.json`), json)
     outBytes += Buffer.byteLength(json)
 
     totalKept += kept
@@ -470,8 +486,8 @@ async function main() {
     index.push({
       ...summarize(authors, authorCounts, kept, replies, firstMs, lastMs),
       date,
-      // `null` when this date is not in ALLOWED_DATES — the app reads that as
-      // "does not exist for the public", not as "exists but is empty".
+      // `null` when this date is not in the chat's publish list — the app reads
+      // that as "does not exist for the public", not "exists but is empty".
       pub: pubWin
         ? summarize(authors, pubAuthorCounts, pubKept, pubReplies, pubFirstMs, pubLastMs)
         : null,
@@ -484,18 +500,23 @@ async function main() {
   // An allowed date that never matched a file is almost always a typo, and it
   // fails silently otherwise — the day simply never shows up in the calendar.
   const emitted = new Set(index.map((d) => d.date))
-  for (const date of PUBLIC_WINDOWS.keys()) {
+  for (const date of chat.windows.keys()) {
     if (!emitted.has(date)) {
-      console.log(c.yellow(`  ! ALLOWED_DATES has ${date}, but the archive has no such day.`))
+      console.log(
+        c.yellow(`    ! ${chat.id}.publish has ${date}, but this archive has no such day.`),
+      )
     }
   }
 
+  const generatedAt = new Date().toISOString()
+
   const indexPayload = {
-    generatedAt: new Date().toISOString(),
-    archive: path.basename(archiveDir),
+    generatedAt,
+    chat: { id: chat.id, name: chat.name },
+    archive: chat.archive,
     config: {
-      tzOffsetMinutes: TZ_OFFSET_MINUTES,
-      allowedDates: [...PUBLIC_WINDOWS].map(([date, w]) => ({
+      tzOffsetMinutes: chat.tzOffsetMinutes,
+      allowedDates: [...chat.windows].map(([date, w]) => ({
         date,
         from: formatClock(w.fromMin),
         to: formatClock(w.toMin),
@@ -514,7 +535,7 @@ async function main() {
   }
 
   const indexJson = JSON.stringify(indexPayload)
-  await fs.writeFile(path.join(OUT_DIR, 'index.json'), indexJson)
+  await fs.writeFile(path.join(outDir, 'index.json'), indexJson)
   outBytes += Buffer.byteLength(indexJson)
 
   // ── all-time leaderboard ──────────────────────────────────────────────────
@@ -522,8 +543,9 @@ async function main() {
   const active = index.filter((d) => d.count > 0).map((d) => d.date)
 
   const statsPayload = {
-    generatedAt: indexPayload.generatedAt,
-    archive: path.basename(archiveDir),
+    generatedAt,
+    chat: { id: chat.id, name: chat.name },
+    archive: chat.archive,
     span: {
       from: active[0] ?? null,
       to: active[active.length - 1] ?? null,
@@ -538,38 +560,107 @@ async function main() {
   }
 
   const statsJson = JSON.stringify(statsPayload)
-  await fs.writeFile(path.join(OUT_DIR, 'stats.json'), statsJson)
+  await fs.writeFile(path.join(outDir, 'stats.json'), statsJson)
   outBytes += Buffer.byteLength(statsJson)
 
-  const secs = ((performance.now() - t0) / 1000).toFixed(1)
-
-  console.log()
-  console.log(c.green('  ✓ done'), c.dim(`in ${secs}s`))
-  console.log(`    messages   ${c.bold(totalKept.toLocaleString('en-US'))} emitted`)
+  console.log(`    messages ${c.bold(totalKept.toLocaleString('en-US'))} emitted`)
   if (totalDropped) {
     console.log(
-      `    ${c.dim(`dropped    ${totalDropped.toLocaleString('en-US')} with no usable timestamp`)}`,
+      c.dim(`    dropped  ${totalDropped.toLocaleString('en-US')} with no usable timestamp`),
     )
   }
   console.log(
-    `    days       ${daysWithData} with data${index.length - daysWithData ? c.dim(` · ${index.length - daysWithData} empty`) : ''}`,
-  )
-  console.log(
-    `    ${c.bold('public')}     ${publicDaysWithData} day(s) · ` +
+    `    ${c.bold('public')}   ${publicDaysWithData} day(s) · ` +
       `${totalPublic.toLocaleString('en-US')} message(s) visible without the admin password`,
   )
   console.log(
-    `    people     ${c.bold(ranked.length.toLocaleString('en-US'))} in the all-time leaderboard` +
+    `    people   ${c.bold(ranked.length.toLocaleString('en-US'))} in the all-time leaderboard` +
       (ranked.length
         ? c.dim(`  ·  #1 ${ranked[0].name} (${ranked[0].messages.toLocaleString('en-US')})`)
         : ''),
   )
   console.log(
-    `    size       ${mb(rawBytes)} → ${c.bold(mb(outBytes))}` +
+    `    size     ${mb(rawBytes)} → ${c.bold(mb(outBytes))}` +
+      c.dim(`  (${(100 - (outBytes / rawBytes) * 100).toFixed(0)}% smaller)`),
+  )
+  console.log()
+
+  return {
+    row: {
+      id: chat.id,
+      name: chat.name,
+      archive: chat.archive,
+      tzOffsetMinutes: chat.tzOffsetMinutes,
+      days: daysWithData,
+      messages: totalKept,
+      publicDays: publicDaysWithData,
+      publicMessages: totalPublic,
+      from: active[0] ?? null,
+      to: active[active.length - 1] ?? null,
+    },
+    rawBytes,
+    outBytes,
+  }
+}
+
+// ── main ────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const t0 = performance.now()
+
+  console.log()
+  console.log(c.bold('chat-preview · prep'))
+  console.log(
+    `  ${c.bold(String(RESOLVED_CHATS.length))} chat(s)  ` +
+      c.dim(RESOLVED_CHATS.map((ch) => ch.name).join('  ·  ')),
+  )
+  console.log()
+
+  // Fresh output dir so a narrowed window — or a chat removed from the config —
+  // cannot leave stale days behind for someone who kept the URL.
+  await fs.rm(OUT_DIR, { recursive: true, force: true })
+  await fs.mkdir(OUT_DIR, { recursive: true })
+
+  const { map: emoteMap, missing: missingEmotes } = await prepEmotes()
+  console.log()
+
+  const rows = []
+  let rawBytes = 0
+  let outBytes = 0
+
+  for (const chat of RESOLVED_CHATS) {
+    const result = await prepChat(chat, emoteMap)
+    rows.push(result.row)
+    rawBytes += result.rawBytes
+    outBytes += result.outBytes
+  }
+
+  // Not read by the app — the chat list lives in src/config.ts, which is the
+  // one place it can be edited. This is for looking at a deploy and seeing what
+  // it actually carries.
+  const chatsJson = JSON.stringify(
+    { generatedAt: new Date().toISOString(), chats: rows },
+    null,
+    2,
+  )
+  await fs.writeFile(path.join(OUT_DIR, 'chats.json'), chatsJson)
+  outBytes += Buffer.byteLength(chatsJson)
+
+  const secs = ((performance.now() - t0) / 1000).toFixed(1)
+  const totalMessages = rows.reduce((n, r) => n + r.messages, 0)
+  const publicMessages = rows.reduce((n, r) => n + r.publicMessages, 0)
+
+  console.log(c.green('  ✓ done'), c.dim(`in ${secs}s`))
+  console.log(
+    `    ${totalMessages.toLocaleString('en-US')} message(s) across ${rows.length} chat(s) · ` +
+      `${publicMessages.toLocaleString('en-US')} visible without the admin password`,
+  )
+  console.log(
+    `    size   ${mb(rawBytes)} → ${c.bold(mb(outBytes))}` +
       c.dim(`  (${(100 - (outBytes / rawBytes) * 100).toFixed(0)}% smaller)`),
   )
   if (missingEmotes.length) {
-    console.log(c.dim(`    emotes     ${missingEmotes.length} broken token(s) will render as text`))
+    console.log(c.dim(`    emotes ${missingEmotes.length} broken token(s) will render as text`))
   }
   console.log()
 }

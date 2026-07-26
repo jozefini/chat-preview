@@ -15,9 +15,10 @@ import {
  *
  * Nothing renders until the visitor types one of two passwords:
  *
- *   ARCHIVE_PASSWORD → role `public`. Sees only the days in `ALLOWED_DATES`
- *                      (src/config.ts), trimmed to each day's clock window.
- *   ADMIN_PASSWORD   → role `admin`. Sees the entire archive, every hour.
+ *   ARCHIVE_PASSWORD → role `public`. Sees only the days in each chat's
+ *                      `publish` list (src/config.ts), trimmed to that day's
+ *                      clock window — and only the chats that publish anything.
+ *   ADMIN_PASSWORD   → role `admin`. Sees every chat in full, every hour.
  *
  * Both are turned into salted SHA-256 digests at BUILD time (see
  * vite.config.ts) so the bundle carries hashes, never passwords. The two roles
@@ -27,7 +28,7 @@ import {
  *
  * Be clear-eyed about what this is: a client-side lock on a static site. Since
  * prep now publishes the whole archive so admins can read it, every day's JSON
- * sits at a guessable URL under `/data/days/`, served without auth. This gate
+ * sits at a guessable URL under `/data/<chatId>/days/`, served without auth. This gate
  * decides what the APP shows, not what the SERVER hands out. For a real
  * boundary the site needs Vercel Deployment Protection or middleware in front
  * of /data.

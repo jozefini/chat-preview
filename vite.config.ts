@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
   } else if (!adminPassword) {
     console.warn(
       '\n[chat-preview] ADMIN_PASSWORD is not set — nobody can unlock the full archive.' +
-        '\n               Visitors will only see the days in ALLOWED_DATES.\n',
+        "\n               Visitors will only see each chat's published days.\n",
     )
   }
 

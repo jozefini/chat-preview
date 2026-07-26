@@ -8,9 +8,14 @@ import type {
   Message,
   RawDay,
 } from '@/types'
-import { isVisibleMinute, visibleWindow, type Window } from '@/config'
+import { isVisibleMinute, visibleWindow, type Chat, type Window } from '@/config'
 
-const BASE = `${import.meta.env.BASE_URL}data`
+/**
+ * Each chat's files live under their own folder, named by chat id — switching
+ * archives is swapping this one path segment, and nothing else in the data
+ * layer has to know there is more than one.
+ */
+const baseFor = (chatId: string) => `${import.meta.env.BASE_URL}data/${chatId}`
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal })
@@ -168,44 +173,55 @@ export function nearestDayWithData(
   return best.date
 }
 
-export const indexQuery = queryOptions({
-  queryKey: ['index'],
-  queryFn: ({ signal }) => getJson<ArchiveIndex>(`${BASE}/index.json`, signal),
-  staleTime: Infinity,
-})
+export function indexQuery(chatId: string) {
+  return queryOptions({
+    queryKey: ['index', chatId],
+    queryFn: ({ signal }) =>
+      getJson<ArchiveIndex>(`${baseFor(chatId)}/index.json`, signal),
+    staleTime: Infinity,
+  })
+}
 
 /**
- * The all-time leaderboard. Prep builds it because it is the only pass that
- * ever sees the whole archive; answering "who talked the most, ever" in the
- * browser would mean downloading every day file.
+ * One chat's all-time leaderboard. Prep builds it because it is the only pass
+ * that ever sees the whole archive; answering "who talked the most, ever" in
+ * the browser would mean downloading every day file.
  *
  * Only ever fetched from the admin-only /stats route — it holds whole-archive
  * numbers, including days a public visitor is not shown.
  */
-export const statsQuery = queryOptions({
-  queryKey: ['stats'],
-  queryFn: ({ signal }) => getJson<ArchiveStats>(`${BASE}/stats.json`, signal),
-  staleTime: Infinity,
-  retry: false,
-})
+export function statsQuery(chatId: string) {
+  return queryOptions({
+    queryKey: ['stats', chatId],
+    queryFn: ({ signal }) =>
+      getJson<ArchiveStats>(`${baseFor(chatId)}/stats.json`, signal),
+    staleTime: Infinity,
+    retry: false,
+  })
+}
 
 /**
- * One day, decoded for one role.
+ * One day of one chat, decoded for one role.
  *
- * The role is part of the cache key on purpose: the same file decodes to two
- * different message lists, and a public session must never be handed the entry
- * an admin session warmed. (Logging out clears the cache too — belt and
- * braces, since the key alone already keeps them apart.)
+ * Both the chat and the role are part of the cache key. The role because the
+ * same file decodes to two different message lists, and a public session must
+ * never be handed the entry an admin session warmed. (Logging out clears the
+ * cache too — belt and braces, since the key alone already keeps them apart.)
+ * The chat because two archives can hold the same date, and the switcher makes
+ * moving between them a single click.
  */
-export function dayQuery(date: string, isAdmin: boolean) {
+export function dayQuery(chat: Chat, date: string, isAdmin: boolean) {
   return queryOptions({
-    queryKey: ['day', date, isAdmin ? 'admin' : 'public'],
+    queryKey: ['day', chat.id, date, isAdmin ? 'admin' : 'public'],
     queryFn: async ({ signal }) => {
-      const win = visibleWindow(date, isAdmin)
+      const win = visibleWindow(chat, date, isAdmin)
       // Refuse before fetching: an off-limits date should not even produce a
       // request for its JSON.
-      if (!win) throw new Error(`${date} is not published.`)
-      return decodeDay(await getJson<RawDay>(`${BASE}/days/${date}.json`, signal), win)
+      if (!win) throw new Error(`${date} is not published in ${chat.name}.`)
+      return decodeDay(
+        await getJson<RawDay>(`${baseFor(chat.id)}/days/${date}.json`, signal),
+        win,
+      )
     },
     // A day file is immutable once prepped, so never refetch it in a session.
     staleTime: Infinity,

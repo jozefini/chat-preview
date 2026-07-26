@@ -24,21 +24,25 @@ const SEARCH_DEBOUNCE_MS = 120
 const AUTHOR_SEP = '\u001f'
 
 export function DayRoute() {
-  const { date } = useParams({ from: '/d/$date' })
-  const search = useSearch({ from: '/d/$date' })
+  const { chatId, date } = useParams({ from: '/c/$chatId/d/$date' })
+  const search = useSearch({ from: '/c/$chatId/d/$date' })
   const navigate = useNavigate()
   const shell = useShell()
   const { isAdmin } = useAuth()
+
+  // The layout resolved the URL's chat already; taking it from there rather
+  // than re-deriving keeps the two from ever disagreeing mid-navigation.
+  const chat = shell.chat
 
   /**
    * What this viewer may see of this day, or `null` if nothing. The `??`
    * fallback only feeds the hooks below — an off-limits day bails out with a
    * message further down, after every hook has run.
    */
-  const allowed = visibleWindow(date, isAdmin)
+  const allowed = visibleWindow(chat, date, isAdmin)
   const win = allowed ?? FULL_DAY
 
-  const { data: day, isPending, error } = useQuery(dayQuery(date, isAdmin))
+  const { data: day, isPending, error } = useQuery(dayQuery(chat, date, isAdmin))
 
   const [qInput, setQInput] = useState(search.q)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -53,8 +57,8 @@ export function DayRoute() {
     if (qInput === search.q) return
     const t = setTimeout(() => {
       void navigate({
-        to: '/d/$date',
-        params: { date },
+        to: '/c/$chatId/d/$date',
+        params: { chatId, date },
         search: (s) => ({ ...DEFAULT_SEARCH, ...s, q: qInput }),
         replace: true,
       })
@@ -104,8 +108,8 @@ export function DayRoute() {
 
   function patch(next: Partial<DaySearch>) {
     void navigate({
-      to: '/d/$date',
-      params: { date },
+      to: '/c/$chatId/d/$date',
+      params: { chatId, date },
       search: (s) => ({ ...DEFAULT_SEARCH, ...s, ...next }),
       replace: true,
     })
@@ -128,7 +132,7 @@ export function DayRoute() {
     return (
       <Centered
         title="Not published"
-        body={`${date} is not part of this archive's published days.`}
+        body={`${date} is not part of ${chat.name}'s published days.`}
       />
     )
   }
@@ -185,6 +189,11 @@ export function DayRoute() {
             <h2 className="truncate text-sm font-semibold tracking-tight">
               <span className="sm:hidden">{formatDateShort(date)}</span>
               <span className="hidden sm:inline">{formatDate(date)}</span>
+              {/* Two archives can hold the same date, so the date alone no
+                  longer says which page you are looking at. */}
+              <span className="ml-2 text-[11px] font-medium text-neutral-500">
+                {chat.name}
+              </span>
             </h2>
             <p className="text-[11px] text-neutral-500 tabular-nums">
               {isPending ? (

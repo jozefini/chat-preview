@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { statsQuery } from '@/lib/data'
 import { DEFAULT_SEARCH } from '@/lib/search'
-import { toArchiveDate } from '@/config'
+import { toArchiveDate, type Chat } from '@/config'
 import { useAuth } from '@/lib/auth'
 import { useShell } from '@/lib/shell'
 import type { ArchiveStats, AuthorStat } from '@/types'
@@ -59,7 +59,10 @@ const PODIUM = [
 export function StatsRoute() {
   const { isAdmin } = useAuth()
   const shell = useShell()
-  const { data, isPending, error } = useQuery({ ...statsQuery, enabled: isAdmin })
+  // The layout already resolved which archive the URL names; the leaderboard is
+  // per-chat, so every fetch and every date below is scoped to that one.
+  const chat = shell.chat
+  const { data, isPending, error } = useQuery({ ...statsQuery(chat.id), enabled: isAdmin })
 
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<SortKey>('messages')
@@ -98,7 +101,7 @@ export function StatsRoute() {
     return (
       <Centered
         title="No statistics yet"
-        body={`Could not load /data/stats.json — run "npm run prep" to build the all-time leaderboard. (${(error as Error).message})`}
+        body={`Could not load /data/${chat.id}/stats.json — run "npm run prep" to build the all-time leaderboard. (${(error as Error).message})`}
       />
     )
   }
@@ -119,14 +122,18 @@ export function StatsRoute() {
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-semibold tracking-tight">
               🏆 All-time leaderboard
+              <span className="ml-2 text-[11px] font-medium text-neutral-500">{chat.name}</span>
             </h2>
             <p className="text-[11px] text-neutral-500 tabular-nums">
               {isPending || !data ? 'Loading…' : <Span stats={data} />}
             </p>
           </div>
 
+          {/* Back into THIS chat. `/` would resolve to the first archive the
+              viewer can open, quietly moving them to a different one. */}
           <Link
-            to="/"
+            to="/c/$chatId"
+            params={{ chatId: chat.id }}
             className="flex-shrink-0 cursor-pointer rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white"
           >
             ← Chat
@@ -209,7 +216,7 @@ export function StatsRoute() {
 
             {rows.length ? (
               <>
-                <Table rows={rows.slice(0, limit)} top={top} />
+                <Table chat={chat} rows={rows.slice(0, limit)} top={top} />
                 {rows.length > limit && (
                   <button
                     type="button"
@@ -286,7 +293,7 @@ function Podium({ top3 }: { top3: Ranked[] }) {
   )
 }
 
-function Table({ rows, top }: { rows: Ranked[]; top: number }) {
+function Table({ chat, rows, top }: { chat: Chat; rows: Ranked[]; top: number }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-white/10">
       <table className="w-full min-w-[860px] border-collapse text-left text-xs">
@@ -368,17 +375,17 @@ function Table({ rows, top }: { rows: Ranked[]; top: number }) {
                 className="px-2 py-1.5 text-[11px] whitespace-nowrap text-neutral-500 tabular-nums"
                 title={
                   a.firstMs !== null && a.lastMs !== null
-                    ? `${toArchiveDate(a.firstMs)} → ${toArchiveDate(a.lastMs)}`
+                    ? `${toArchiveDate(chat, a.firstMs)} → ${toArchiveDate(chat, a.lastMs)}`
                     : undefined
                 }
               >
-                {activeRange(a)}
+                {activeRange(chat, a)}
               </td>
               <td className="px-2 py-1.5 text-[11px] whitespace-nowrap tabular-nums">
                 {a.bestDate ? (
                   <Link
-                    to="/d/$date"
-                    params={{ date: a.bestDate }}
+                    to="/c/$chatId/d/$date"
+                    params={{ chatId: chat.id, date: a.bestDate }}
                     search={DEFAULT_SEARCH}
                     className="text-sky-400/80 hover:text-sky-300 hover:underline"
                     title={`Open ${a.bestDate}`}
@@ -422,10 +429,10 @@ function Th({
  * are active inside a single year, and the repeat costs a column of width the
  * table would rather spend on the busiest-day link. Full range is in `title`.
  */
-function activeRange(a: Ranked): string {
+function activeRange(chat: Chat, a: Ranked): string {
   if (a.firstMs === null || a.lastMs === null) return '—'
-  const from = toArchiveDate(a.firstMs)
-  const to = toArchiveDate(a.lastMs)
+  const from = toArchiveDate(chat, a.firstMs)
+  const to = toArchiveDate(chat, a.lastMs)
   return `${from} → ${from.slice(0, 4) === to.slice(0, 4) ? to.slice(5) : to}`
 }
 

@@ -30,21 +30,28 @@ export interface DayStats {
 /**
  * A day in the index, summarised twice: the top-level fields are the whole day
  * (what an admin sees) and `pub` is the same day narrowed to its public clock
- * window. `pub: null` means the date is not in `ALLOWED_DATES` at all — for a
- * public visitor the day does not exist, which is different from a published
- * day that happens to be empty (`pub.count === 0`).
+ * window. `pub: null` means the date is not in the chat's `publish` list at all
+ * — for a public visitor the day does not exist, which is different from a
+ * published day that happens to be empty (`pub.count === 0`).
  */
 export interface DayMeta extends DayStats {
   date: string
   pub: DayStats | null
 }
 
+/** Which archive a file belongs to. Echoed by prep so a stray file identifies itself. */
+export interface ChatRef {
+  id: string
+  name: string
+}
+
 export interface ArchiveIndex {
   generatedAt: string
+  chat: ChatRef
   archive: string
   config: {
     tzOffsetMinutes: number
-    /** Snapshot of `ALLOWED_DATES` at prep time, with windows resolved. */
+    /** Snapshot of the chat's `publish` list at prep time, windows resolved. */
     allowedDates: { date: string; from: string; to: string }[]
   }
   totals: {
@@ -84,9 +91,10 @@ export interface AuthorStat {
   bestCount: number
 }
 
-/** `public/data/stats.json` — the all-time leaderboard, built by prep. */
+/** `public/data/<chatId>/stats.json` — the all-time leaderboard, built by prep. */
 export interface ArchiveStats {
   generatedAt: string
+  chat: ChatRef
   archive: string
   span: {
     /** First and last day holding messages, or `null` for an empty archive. */

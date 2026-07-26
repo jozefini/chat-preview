@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { Chat } from '@/config'
 
 /**
  * Below `lg` the calendar and the filter rail collapse into drawers that slide
@@ -7,6 +8,8 @@ import { createContext, useContext } from 'react'
  * shared through here rather than lifted awkwardly through props.
  */
 export interface Shell {
+  /** The archive currently open — already resolved from the URL by the layout. */
+  chat: Chat
   calendarOpen: boolean
   setCalendarOpen: (open: boolean) => void
   zoom: number
